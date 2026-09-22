@@ -1,3 +1,14 @@
+## 0.4.1
+
+- New reading filters that keep colours: `PdfFlipBook.dim` (75 %
+  brightness) and `PdfFlipBook.sepia` (warm cream tone).
+- Matching paper colours for every filter: `dimPaper`, `sepiaPaper`,
+  `nightPaper`, so the back of a turning page matches the pages.
+- Docs: `paperColor` is the paper, not the screen background; `nightMode`
+  inverts covers and pictures and is meant for text-only books. README has
+  a reading modes table and a comparison image.
+- Example: reading mode switch (normal, dim, sepia, night).
+
 ## 0.4.0
 
 - Two-page spread like an open book: `PageFlipView(spread: true)`, and

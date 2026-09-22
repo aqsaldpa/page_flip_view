@@ -41,7 +41,7 @@ class DemoApp extends StatelessWidget {
   }
 }
 
-/// A bundled PDF with page buttons and a night mode switch.
+/// A bundled PDF with page buttons and a reading mode switch.
 class AssetPdfDemo extends StatefulWidget {
   const AssetPdfDemo({super.key});
 
@@ -53,7 +53,7 @@ class _AssetPdfDemoState extends State<AssetPdfDemo> {
   final controller = PageFlipController();
   int page = 0;
   int total = 0;
-  bool night = false;
+  ReadingMode mode = ReadingMode.normal;
 
   @override
   void dispose() {
@@ -66,22 +66,39 @@ class _AssetPdfDemoState extends State<AssetPdfDemo> {
     return DemoFrame(
       controller: controller,
       label: 'Page ${page + 1} of $total',
-      trailing: IconButton(
-        color: Colors.white,
-        tooltip: 'Night mode',
-        onPressed: () => setState(() => night = !night),
-        icon: Icon(night ? Icons.light_mode : Icons.dark_mode),
+      trailing: TextButton.icon(
+        style: TextButton.styleFrom(foregroundColor: Colors.white),
+        onPressed: () => setState(() => mode = mode.next),
+        icon: const Icon(Icons.contrast),
+        label: Text(mode.label),
       ),
       child: PdfFlipBook.asset(
         'assets/sample.pdf',
         controller: controller,
         onLoaded: (count) => setState(() => total = count),
         onPageChanged: (value) => setState(() => page = value),
-        colorFilter: night ? PdfFlipBook.nightMode : null,
-        paperColor: night ? const Color(0xFF1E1E1E) : Colors.white,
+        colorFilter: mode.filter,
+        paperColor: mode.paper,
       ),
     );
   }
+}
+
+/// Each reading mode pairs a colour filter with the paper colour that
+/// matches it, so the back of a turning page has the right colour.
+enum ReadingMode {
+  normal('Normal', null, Colors.white),
+  dim('Dim', PdfFlipBook.dim, PdfFlipBook.dimPaper),
+  sepia('Sepia', PdfFlipBook.sepia, PdfFlipBook.sepiaPaper),
+  night('Night', PdfFlipBook.nightMode, PdfFlipBook.nightPaper);
+
+  const ReadingMode(this.label, this.filter, this.paper);
+
+  final String label;
+  final ColorFilter? filter;
+  final Color paper;
+
+  ReadingMode get next => values[(index + 1) % values.length];
 }
 
 /// A PDF downloaded from a URL, with a download progress indicator.

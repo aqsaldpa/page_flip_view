@@ -4,9 +4,11 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/demo.gif" width="300" alt="A PDF page being turned with a diagonal corner curl"></p>
 
-| Two pages on wide screens | Pinch and double tap zoom | Night mode |
-|:---:|:---:|:---:|
-| <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/spread.gif" width="300" alt="Two-page spread turning"> | <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/zoom.gif" width="170" alt="Double tap zoom and pan"> | <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/night.gif" width="170" alt="Night mode"> |
+| Two pages on wide screens | Pinch and double tap zoom |
+|:---:|:---:|
+| <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/spread.gif" width="320" alt="Two-page spread turning"> | <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/zoom.gif" width="180" alt="Double tap zoom and pan"> |
+
+<p align="center"><img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/reading_modes.png" width="640" alt="Reading modes: normal, dim, sepia, night"><br><sub>Reading modes: normal, dim, sepia, night</sub></p>
 
 Turn pages like a real book or magazine. The page corner lifts diagonally, follows your finger, and falls back or turns over when you let go. Use it for PDF books, magazines, catalogues, comics, or any list of widgets.
 
@@ -18,7 +20,8 @@ Turn pages like a real book or magazine. The page corner lifts diagonally, follo
 - The back of the turning page shows the page faintly through the paper, with soft fold shadows
 - Two pages side by side like an open book on landscape phones, tablets and unfolded foldables, switching live when the device rotates or folds
 - Pinch or double tap to zoom; PDF pages are re-rendered sharp at the zoom level
-- PDF from a URL, a file, an asset or bytes, with download progress, passwords and night mode
+- PDF from a URL, a file, an asset or bytes, with download progress and passwords
+- Reading modes for PDFs: dim, sepia and night, each with a matching paper colour
 - No spinner while turning PDF pages: a small preview appears at once and sharpens a moment later
 - `PageFlipController` for previous / next / jump from buttons or sliders
 
@@ -34,7 +37,7 @@ or in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  page_flip_view: ^0.4.0
+  page_flip_view: ^0.4.1
 ```
 
 **2. Platform setup** (only needed for PDFs)
@@ -139,15 +142,30 @@ LayoutBuilder(builder: (context, box) {
 })
 ```
 
-## Night mode
+## Reading modes (dim, sepia, night)
+
+`PdfFlipBook` can pass every page through a colour filter. Each ready-made filter comes with the paper colour that matches it:
+
+| Mode | `colorFilter` | `paperColor` | Colours of covers and pictures | Use for |
+|---|---|---|---|---|
+| Normal | none | white (default) | unchanged | everything |
+| Dim | `PdfFlipBook.dim` | `PdfFlipBook.dimPaper` | kept, 75 % brightness | reading in a dark room, any book |
+| Sepia | `PdfFlipBook.sepia` | `PdfFlipBook.sepiaPaper` | kept, warmer tone | long reading on cream paper |
+| Night | `PdfFlipBook.nightMode` | `PdfFlipBook.nightPaper` | **inverted**: they look wrong | text-only books |
 
 ```dart
 PdfFlipBook.file(
   path,
-  colorFilter: PdfFlipBook.nightMode,
-  paperColor: const Color(0xFF1E1E1E),
+  colorFilter: PdfFlipBook.dim,
+  paperColor: PdfFlipBook.dimPaper,
 )
 ```
+
+Three things to get right:
+
+1. **`paperColor` is the paper, not the screen background.** It shows behind a page until the page is rendered, and on the back of a turning sheet in single-page mode (in two-page mode the back shows the next page). The area around the book is your own widget, for example `Scaffold(backgroundColor: ...)`.
+2. **Always change `colorFilter` and `paperColor` together**, using the pairs above. If they do not match, the back of a turning page shows the wrong colour, for example a black flap on white pages.
+3. **A dark app theme does not need a filter.** To keep books exactly as printed, darken only the screen background and leave `colorFilter` null and `paperColor` white.
 
 ## Loading, placeholders and errors
 
@@ -172,7 +190,7 @@ PdfFlipBook.network(
 | `controller` | | Turn pages from code |
 | `onPageChanged` | | Called with the page index after a turn or jump |
 | `onCenterTap` | | Tap in the middle of the page |
-| `paperColor` | white | Paper colour behind pages and on the back |
+| `paperColor` | white | The paper: behind unrendered pages and on the back of a turning sheet in single-page mode (not the screen background) |
 | `enableZoom` | true | Pinch and double tap zoom; one finger pans while zoomed |
 | `maxScale` | 4 | Largest zoom factor |
 | `coverAlone` | true | In two-page mode, the first page stands alone on the right |
@@ -192,7 +210,7 @@ PdfFlipBook.network(
 | `onZoomChanged` | | Called when a zoom settles, e.g. to load a sharper image |
 | `spread` | false | Two pages side by side; give the view twice a page's width |
 
-`PdfFlipBook` only: `spreadMode` (auto / single / double), `onLoaded`, `loadingBuilder`, `placeholderBuilder`, `pageErrorBuilder`, `errorBuilder`, `password`, `colorFilter`, and `headers` / `timeout` for `.network`.
+`PdfFlipBook` only: `spreadMode` (auto / single / double), `colorFilter` (see reading modes), `onLoaded`, `loadingBuilder`, `placeholderBuilder`, `pageErrorBuilder`, `errorBuilder`, `password`, and `headers` / `timeout` for `.network`.
 
 Taps on the page edges turn pages at once. A tap in the middle waits a moment (the double tap window) before calling `onCenterTap`, because a second tap there zooms.
 
@@ -213,7 +231,7 @@ The fold line is the perpendicular bisector between the page corner and the fing
 
 ## Example
 
-[`example/`](example) has three tabs: a bundled PDF with night mode, a PDF downloaded from a URL, and plain widgets.
+[`example/`](example) has three tabs: a bundled PDF with a reading mode switch (normal, dim, sepia, night), a PDF downloaded from a URL, and plain widgets.
 
 ```sh
 cd example

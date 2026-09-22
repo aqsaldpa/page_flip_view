@@ -267,14 +267,48 @@ class PdfFlipBook extends StatefulWidget {
        _timeout = timeout,
        _document = document;
 
-  /// A [colorFilter] for reading at night: inverts the page so it becomes
-  /// light text on a dark page. Pair it with a dark [paperColor].
+  /// A [colorFilter] that inverts every colour of the page: black text on
+  /// white becomes light text on black.
+  ///
+  /// Covers, photos and illustrations are inverted too and look wrong, so
+  /// use it only for text-only PDFs. Pair it with [nightPaper] as
+  /// [paperColor]. For books with pictures prefer [dim], or keep the pages
+  /// as they are and only darken the screen background.
   static const ColorFilter nightMode = ColorFilter.matrix(<double>[
     -1, 0, 0, 0, 255, //
     0, -1, 0, 0, 255, //
     0, 0, -1, 0, 255, //
     0, 0, 0, 1, 0, //
   ]);
+
+  /// A [colorFilter] that darkens the page to 75 % brightness and keeps
+  /// every colour, so covers and pictures stay correct. Good for reading
+  /// in a dark room. Pair it with [dimPaper] as [paperColor].
+  static const ColorFilter dim = ColorFilter.matrix(<double>[
+    0.75, 0, 0, 0, 0, //
+    0, 0.75, 0, 0, 0, //
+    0, 0, 0.75, 0, 0, //
+    0, 0, 0, 1, 0, //
+  ]);
+
+  /// A [colorFilter] that gives the page a warm, cream paper tone, easier on
+  /// the eyes than bright white. Pictures keep their colours but look
+  /// warmer. Pair it with [sepiaPaper] as [paperColor].
+  static const ColorFilter sepia = ColorFilter.matrix(<double>[
+    0.98, 0, 0, 0, 0, //
+    0, 0.92, 0, 0, 0, //
+    0, 0, 0.80, 0, 0, //
+    0, 0, 0, 1, 0, //
+  ]);
+
+  /// Paper colour for [dim]: white at 75 % brightness.
+  static const Color dimPaper = Color(0xFFBFBFBF);
+
+  /// Paper colour for [sepia]: white seen through the sepia filter.
+  static const Color sepiaPaper = Color(0xFFFAEBCC);
+
+  /// Paper colour for [nightMode]: white inverted.
+  static const Color nightPaper = Color(0xFF000000);
 
   final String? _filePath;
   final String? _assetName;
@@ -296,7 +330,17 @@ class PdfFlipBook extends StatefulWidget {
   /// Called on a tap in the middle of the page.
   final VoidCallback? onCenterTap;
 
-  /// Paper colour behind pages and on the back of a turning page.
+  /// Colour of the paper: behind each page until it is rendered, and on the
+  /// back of a turning sheet in single-page mode.
+  ///
+  /// Match it to how white looks on the page after [colorFilter]: white
+  /// with no filter (also in a dark app theme), [dimPaper] with [dim],
+  /// [sepiaPaper] with [sepia], [nightPaper] with [nightMode]. A mismatch
+  /// shows as a wrong-coloured back while a page turns, for example a black
+  /// flap on white pages.
+  ///
+  /// This is not the screen background around the book; set that on the
+  /// parent (for example `Scaffold.backgroundColor`).
   final Color paperColor;
 
   /// Shown while the document opens or downloads. Defaults to a progress
@@ -316,7 +360,10 @@ class PdfFlipBook extends StatefulWidget {
   /// Password for encrypted PDFs.
   final String? password;
 
-  /// Filter applied to every rendered page, for example [nightMode].
+  /// Colour filter applied to every rendered page.
+  ///
+  /// Ready-made: [dim] (darker, colours kept), [sepia] (warm tone) and
+  /// [nightMode] (inverted, text-only books). Any [ColorFilter] works.
   final ColorFilter? colorFilter;
 
   /// Pinch or double tap to zoom into a page. The zoomed page is rendered

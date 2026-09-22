@@ -2,7 +2,7 @@
 
 A small app with three tabs:
 
-- **PDF asset**: `PdfFlipBook.asset` with a bundled six-page PDF, previous/next buttons, a page counter and a night mode switch.
+- **PDF asset**: `PdfFlipBook.asset` with a bundled six-page PDF, previous/next buttons, a page counter and a reading mode switch (normal, dim, sepia, night). Each mode sets `colorFilter` and the matching `paperColor` together.
 - **PDF network**: `PdfFlipBook.network` downloading a PDF from GitHub, with a download progress bar and a retry button.
 - **Widgets**: `PageFlipView` with plain coloured pages, to show that any widget can be a page.
 

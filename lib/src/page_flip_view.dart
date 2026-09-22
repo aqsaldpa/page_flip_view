@@ -86,7 +86,14 @@ class PageFlipView extends StatefulWidget {
   /// Whether tapping the page edges turns pages.
   final bool enableTapToFlip;
 
-  /// Colour of the paper seen on the back of a turning page.
+  /// Colour of the paper: the back of a turning sheet in single-page mode,
+  /// and the paper behind the flap.
+  ///
+  /// Match it to the colour of blank paper on your pages (usually white),
+  /// otherwise the back of a turning sheet shows the wrong colour.
+  ///
+  /// This is not the screen background around the book; set that on the
+  /// parent (for example `Scaffold.backgroundColor`).
   final Color paperColor;
 
   /// How much of the page shows through its back, from 0 (plain paper)
