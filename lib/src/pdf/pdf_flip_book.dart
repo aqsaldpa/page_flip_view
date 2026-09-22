@@ -19,6 +19,12 @@ typedef PdfPageErrorBuilder =
 typedef PdfDocumentErrorBuilder =
     Widget Function(BuildContext context, Object error, VoidCallback retry);
 
+/// Builds what is shown while the document opens. [progress] goes from 0 to
+/// 1 while a [PdfFlipBook.network] file downloads, and is null when the
+/// size is unknown or the source is local.
+typedef PdfLoadingBuilder =
+    Widget Function(BuildContext context, double? progress);
+
 /// A PDF shown as a book with the corner-curl page turn of [PageFlipView].
 ///
 /// Pages are rendered with [pdfrx](https://pub.dev/packages/pdfrx) (PDFium)
@@ -27,11 +33,52 @@ typedef PdfDocumentErrorBuilder =
 /// rendered ahead of time, so turning pages does not show a spinner.
 ///
 /// ```dart
-/// PdfFlipBook.file('/path/book.pdf')
+/// PdfFlipBook.network(Uri.parse('https://example.com/book.pdf'))
 /// PdfFlipBook.asset('assets/book.pdf')
+/// PdfFlipBook.file('/path/book.pdf')
 /// PdfFlipBook.data(bytes)
 /// ```
 class PdfFlipBook extends StatefulWidget {
+  /// Downloads and opens the PDF at [uri]. Pass [headers] for authenticated
+  /// URLs. The download progress is given to [loadingBuilder].
+  const PdfFlipBook.network(
+    Uri uri, {
+    Key? key,
+    Map<String, String>? headers,
+    Duration? timeout,
+    PageFlipController? controller,
+    ValueChanged<int>? onPageChanged,
+    ValueChanged<int>? onLoaded,
+    VoidCallback? onCenterTap,
+    Color paperColor = const Color(0xFFFFFFFF),
+    PdfLoadingBuilder? loadingBuilder,
+    PdfPagePlaceholderBuilder? placeholderBuilder,
+    PdfPageErrorBuilder? pageErrorBuilder,
+    PdfDocumentErrorBuilder? errorBuilder,
+    String? password,
+    ColorFilter? colorFilter,
+    bool enableZoom = true,
+    double maxScale = 4,
+  }) : this._(
+         key: key,
+         uri: uri,
+         headers: headers,
+         timeout: timeout,
+         controller: controller,
+         onPageChanged: onPageChanged,
+         onLoaded: onLoaded,
+         onCenterTap: onCenterTap,
+         paperColor: paperColor,
+         loadingBuilder: loadingBuilder,
+         placeholderBuilder: placeholderBuilder,
+         pageErrorBuilder: pageErrorBuilder,
+         errorBuilder: errorBuilder,
+         password: password,
+         colorFilter: colorFilter,
+         enableZoom: enableZoom,
+         maxScale: maxScale,
+       );
+
   /// Opens the PDF at [path] on the device.
   const PdfFlipBook.file(
     String path, {
@@ -41,7 +88,7 @@ class PdfFlipBook extends StatefulWidget {
     ValueChanged<int>? onLoaded,
     VoidCallback? onCenterTap,
     Color paperColor = const Color(0xFFFFFFFF),
-    WidgetBuilder? loadingBuilder,
+    PdfLoadingBuilder? loadingBuilder,
     PdfPagePlaceholderBuilder? placeholderBuilder,
     PdfPageErrorBuilder? pageErrorBuilder,
     PdfDocumentErrorBuilder? errorBuilder,
@@ -76,7 +123,7 @@ class PdfFlipBook extends StatefulWidget {
     ValueChanged<int>? onLoaded,
     VoidCallback? onCenterTap,
     Color paperColor = const Color(0xFFFFFFFF),
-    WidgetBuilder? loadingBuilder,
+    PdfLoadingBuilder? loadingBuilder,
     PdfPagePlaceholderBuilder? placeholderBuilder,
     PdfPageErrorBuilder? pageErrorBuilder,
     PdfDocumentErrorBuilder? errorBuilder,
@@ -111,7 +158,7 @@ class PdfFlipBook extends StatefulWidget {
     ValueChanged<int>? onLoaded,
     VoidCallback? onCenterTap,
     Color paperColor = const Color(0xFFFFFFFF),
-    WidgetBuilder? loadingBuilder,
+    PdfLoadingBuilder? loadingBuilder,
     PdfPagePlaceholderBuilder? placeholderBuilder,
     PdfPageErrorBuilder? pageErrorBuilder,
     PdfDocumentErrorBuilder? errorBuilder,
@@ -154,7 +201,7 @@ class PdfFlipBook extends StatefulWidget {
     double maxScale = 4,
   }) : this._(
          key: key,
-         openedDocument: document,
+         document: document,
          controller: controller,
          onPageChanged: onPageChanged,
          onLoaded: onLoaded,
@@ -169,10 +216,13 @@ class PdfFlipBook extends StatefulWidget {
 
   const PdfFlipBook._({
     super.key,
-    this.filePath,
-    this.assetName,
-    this.bytes,
-    this.openedDocument,
+    String? filePath,
+    String? assetName,
+    Uint8List? bytes,
+    Uri? uri,
+    Map<String, String>? headers,
+    Duration? timeout,
+    PdfDocument? document,
     this.controller,
     this.onPageChanged,
     this.onLoaded,
@@ -186,7 +236,13 @@ class PdfFlipBook extends StatefulWidget {
     this.colorFilter,
     this.enableZoom = true,
     this.maxScale = 4,
-  });
+  }) : _filePath = filePath,
+       _assetName = assetName,
+       _bytes = bytes,
+       _uri = uri,
+       _headers = headers,
+       _timeout = timeout,
+       _document = document;
 
   /// A [colorFilter] for reading at night: inverts the page so it becomes
   /// light text on a dark page. Pair it with a dark [paperColor].
@@ -197,10 +253,13 @@ class PdfFlipBook extends StatefulWidget {
     0, 0, 0, 1, 0, //
   ]);
 
-  final String? filePath;
-  final String? assetName;
-  final Uint8List? bytes;
-  final PdfDocument? openedDocument;
+  final String? _filePath;
+  final String? _assetName;
+  final Uint8List? _bytes;
+  final Uri? _uri;
+  final Map<String, String>? _headers;
+  final Duration? _timeout;
+  final PdfDocument? _document;
 
   /// Turns pages from code; see [PageFlipController].
   final PageFlipController? controller;
@@ -217,8 +276,9 @@ class PdfFlipBook extends StatefulWidget {
   /// Paper colour behind pages and on the back of a turning page.
   final Color paperColor;
 
-  /// Shown while the document opens. Defaults to a small progress indicator.
-  final WidgetBuilder? loadingBuilder;
+  /// Shown while the document opens or downloads. Defaults to a progress
+  /// indicator that fills up while a network file downloads.
+  final PdfLoadingBuilder? loadingBuilder;
 
   /// Shown on a page until its first preview is ready. Defaults to plain
   /// paper, which is usually only visible for a split second.
@@ -243,6 +303,13 @@ class PdfFlipBook extends StatefulWidget {
   /// Largest zoom factor.
   final double maxScale;
 
+  bool _sameSource(PdfFlipBook other) =>
+      other._filePath == _filePath &&
+      other._assetName == _assetName &&
+      other._bytes == _bytes &&
+      other._uri == _uri &&
+      other._document == _document;
+
   @override
   State<PdfFlipBook> createState() => _PdfFlipBookState();
 }
@@ -251,10 +318,10 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
   PdfDocument? _document;
   PdfPageCache? _cache;
   Object? _error;
+  double? _progress;
   int _generation = 0;
   int _page = 0;
-
-  bool get _ownsDocument => widget.openedDocument == null;
+  bool _owned = true;
 
   @override
   void initState() {
@@ -265,12 +332,7 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
   @override
   void didUpdateWidget(PdfFlipBook oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final sourceChanged =
-        oldWidget.filePath != widget.filePath ||
-        oldWidget.assetName != widget.assetName ||
-        oldWidget.bytes != widget.bytes ||
-        oldWidget.openedDocument != widget.openedDocument;
-    if (sourceChanged) _reopen();
+    if (!widget._sameSource(oldWidget)) _reopen();
   }
 
   @override
@@ -283,7 +345,7 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
   void _release() {
     _cache?.dispose();
     _cache = null;
-    if (_ownsDocument) _document?.dispose();
+    if (_owned) _document?.dispose();
     _document = null;
   }
 
@@ -291,39 +353,56 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
     setState(() {
       _release();
       _error = null;
+      _progress = null;
     });
     _open();
   }
 
-  Future<PdfDocument> _load() async {
-    final given = widget.openedDocument;
+  Future<PdfDocument> _load(int ticket) async {
+    final given = widget._document;
     if (given != null) return given;
     await pdfrxFlutterInitialize();
     final password = widget.password;
     final provider = password == null ? null : () => password;
-    final path = widget.filePath;
+    final uri = widget._uri;
+    if (uri != null) {
+      return PdfDocument.openUri(
+        uri,
+        headers: widget._headers,
+        timeout: widget._timeout,
+        passwordProvider: provider,
+        progressCallback: (received, [total]) {
+          if (!mounted || ticket != _generation) return;
+          final size = total ?? 0;
+          setState(() => _progress = size > 0 ? received / size : null);
+        },
+      );
+    }
+    final path = widget._filePath;
     if (path != null) {
       return PdfDocument.openFile(path, passwordProvider: provider);
     }
-    final asset = widget.assetName;
+    final asset = widget._assetName;
     if (asset != null) {
       return PdfDocument.openAsset(asset, passwordProvider: provider);
     }
     return PdfDocument.openData(
-      widget.bytes ?? Uint8List(0),
+      widget._bytes ?? Uint8List(0),
       passwordProvider: provider,
     );
   }
 
   Future<void> _open() async {
     final ticket = ++_generation;
+    final owned = widget._document == null;
     try {
-      final opened = await _load();
+      final opened = await _load(ticket);
       if (!mounted || ticket != _generation) {
-        if (_ownsDocument) await opened.dispose();
+        if (owned) await opened.dispose();
         return;
       }
       setState(() {
+        _owned = owned;
         _document = opened;
         _page = widget.controller?.page ?? 0;
         _cache = PdfPageCache(document: opened)..prefetch(_page);
@@ -349,8 +428,8 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
     }
     final cache = _cache;
     if (cache == null) {
-      return widget.loadingBuilder?.call(context) ??
-          const Center(child: CircularProgressIndicator.adaptive());
+      return widget.loadingBuilder?.call(context, _progress) ??
+          Center(child: CircularProgressIndicator.adaptive(value: _progress));
     }
     if (cache.pageCount == 0) return const SizedBox.shrink();
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);

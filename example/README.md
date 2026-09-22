@@ -1,17 +1,15 @@
-# page_flip_view_example
+# page_flip_view example
 
-A new Flutter project.
+A small app with three tabs:
 
-## Getting Started
+- **PDF asset**: `PdfFlipBook.asset` with a bundled six-page PDF, previous/next buttons, a page counter and a night mode switch.
+- **PDF network**: `PdfFlipBook.network` downloading a PDF from GitHub, with a download progress bar and a retry button.
+- **Widgets**: `PageFlipView` with plain coloured pages, to show that any widget can be a page.
 
-This project is a starting point for a Flutter application.
+Try: drag a page corner, fling, tap the page edges, double tap or pinch to zoom.
 
-A few resources to get you started if this is your first Flutter project:
+```sh
+flutter run
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+iOS needs iOS 15 or newer (PDFium).

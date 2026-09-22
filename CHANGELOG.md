@@ -1,3 +1,13 @@
+## 0.3.0
+
+- `PdfFlipBook.network(uri, headers:, timeout:)` downloads and opens a PDF.
+- **Breaking:** `loadingBuilder` now receives the download progress:
+  `(context, progress)`; `progress` is 0 to 1, or null when unknown.
+- The default loading indicator fills up while a network PDF downloads.
+- Source fields of `PdfFlipBook` are private.
+- README: getting started steps and platform setup; example app has asset,
+  network and widget tabs.
+
 ## 0.2.0
 
 - Pinch and double tap zoom (`enableZoom`, `maxScale`, `doubleTapScale`,

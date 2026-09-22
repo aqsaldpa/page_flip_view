@@ -2,50 +2,85 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/demo.gif" width="340" alt="A PDF page being turned with a diagonal corner curl"></p>
 
-Turn pages like a real book or magazine. The page corner lifts diagonally, follows your finger, and falls back or turns over when you let go. Works with any widgets, and with PDF files out of the box.
+Turn pages like a real book or magazine. The page corner lifts diagonally, follows your finger, and falls back or turns over when you let go. Use it for PDF books, magazines, catalogues, comics, or any list of widgets.
+
+## Features
 
 - Diagonal corner curl that tracks the finger (top or bottom corner, whichever you grab)
 - Release past the middle or fling to turn; otherwise the page falls back
-- Tap the page edges to turn, tap the middle for your own action (show a toolbar, for example)
-- Back of the turning page shows the page faintly through the paper, with soft fold shadows
+- Tap the page edges to turn; tap the middle for your own action (show a toolbar, for example)
+- The back of the turning page shows the page faintly through the paper, with soft fold shadows
 - Pinch or double tap to zoom; PDF pages are re-rendered sharp at the zoom level
-- Night mode for PDFs with one line: `colorFilter: PdfFlipBook.nightMode`
-- `PageFlipController` for next / previous / jump from buttons or sliders
-- PDF books with no spinner while turning: a small preview appears at once and sharpens a moment later
+- PDF from a URL, a file, an asset or bytes, with download progress, passwords and night mode
+- No spinner while turning PDF pages: a small preview appears at once and sharpens a moment later
+- `PageFlipController` for previous / next / jump from buttons or sliders
 
-## Install
+## Getting started
+
+**1. Add the package**
 
 ```yaml
 dependencies:
   page_flip_view:
     git:
       url: https://github.com/aqsaldpa/page_flip_view.git
-      ref: v0.2.0
+      ref: v0.3.0
 ```
 
-## Any widgets
+**2. Platform setup** (only needed for PDFs)
+
+- **iOS**: iOS 15 or newer. In `ios/Podfile` set `platform :ios, '15.0'`, then run `pod install` in `ios/`.
+- **Android**: nothing to do for local PDFs. For `PdfFlipBook.network`, make sure `android/app/src/main/AndroidManifest.xml` has `<uses-permission android:name="android.permission.INTERNET" />` (Flutter only adds it to debug builds).
+- **macOS**: macOS 12 or newer; for network PDFs enable *Outgoing Connections (Client)* in the app sandbox.
+
+**3. Show a book**
+
+```dart
+import 'package:page_flip_view/pdf.dart';
+
+class BookScreen extends StatelessWidget {
+  const BookScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade800,
+      body: SafeArea(
+        child: PdfFlipBook.network(
+          Uri.parse('https://example.com/book.pdf'),
+        ),
+      ),
+    );
+  }
+}
+```
+
+That is all. Opening, downloading, rendering, caching and cleanup are handled for you.
+
+## Open a PDF from anywhere
+
+```dart
+PdfFlipBook.network(Uri.parse(url), headers: {'Authorization': 'Bearer $token'})
+PdfFlipBook.file('/path/to/book.pdf')       // a file on the device
+PdfFlipBook.asset('assets/book.pdf')        // bundled with the app (list it under flutter/assets)
+PdfFlipBook.data(bytes)                     // after downloading or decrypting yourself
+PdfFlipBook.document(pdfDocument)           // a pdfrx PdfDocument you opened yourself
+```
+
+Every constructor takes `password` for encrypted files.
+
+## Any widgets as pages
 
 ```dart
 import 'package:page_flip_view/page_flip_view.dart';
 
 PageFlipView(
-  itemCount: pages.length,
-  itemBuilder: (context, index) => Image.asset(pages[index]),
+  itemCount: photos.length,
+  itemBuilder: (context, index) => Image.network(photos[index], fit: BoxFit.cover),
 )
 ```
 
-## PDF
-
-```dart
-import 'package:page_flip_view/pdf.dart';
-
-PdfFlipBook.asset('assets/book.pdf')
-PdfFlipBook.file('/path/to/book.pdf')
-PdfFlipBook.data(bytes)            // after downloading or decrypting
-PdfFlipBook.document(pdfDocument)  // a pdfrx PdfDocument you opened yourself
-```
-
-That is all you need. Loading, rendering, caching and cleanup are handled for you.
+Only the current page and the pages taking part in a turn are built.
 
 ## Control it from code
 
@@ -68,21 +103,7 @@ controller.page;        // current page, zero based (the controller is a ChangeN
 
 Dispose the controller in your `State.dispose`.
 
-## Customise
-
-| Parameter | Default | What it does |
-|---|---|---|
-| `flipDuration` | 300 ms | Length of a full turn |
-| `followFactor` | 0.22 | How fast the curl catches the finger each frame; lower feels heavier |
-| `backsideOpacity` | 0.2 | How much of the page shows through its back |
-| `paperColor` | white | Paper colour behind pages and on the back |
-| `edgeTapFraction` | 0.2 | Width of the tap-to-turn zones |
-| `enableDrag`, `enableTapToFlip` | true | Turn gestures on or off |
-| `enableZoom` | true | Pinch and double tap zoom; one finger pans while zoomed |
-| `maxScale` / `doubleTapScale` | 4 / 2.5 | Zoom limits |
-| `onZoomChanged` | | Called when a zoom settles, e.g. to load a sharper image |
-
-Night mode for PDFs:
+## Night mode
 
 ```dart
 PdfFlipBook.file(
@@ -92,9 +113,50 @@ PdfFlipBook.file(
 )
 ```
 
-Taps on the page edges turn pages at once. A tap in the middle waits a moment (double tap window) before calling `onCenterTap`, because a second tap there zooms.
+## Loading, placeholders and errors
 
-`PdfFlipBook` also takes `loadingBuilder` (while the file opens), `placeholderBuilder` (a page before its first preview, plain paper by default), `pageErrorBuilder`, `errorBuilder` (the file could not be opened) and `password`.
+```dart
+PdfFlipBook.network(
+  uri,
+  loadingBuilder: (context, progress) => LinearProgressIndicator(value: progress),
+  errorBuilder: (context, error, retry) => TextButton(onPressed: retry, child: const Text('Retry')),
+  placeholderBuilder: (context, page) => const ColoredBox(color: Colors.white),
+  pageErrorBuilder: (context, page, retry) => IconButton(onPressed: retry, icon: const Icon(Icons.refresh)),
+)
+```
+
+`progress` goes from 0 to 1 while a network PDF downloads, and is `null` when the size is unknown.
+
+## All options
+
+`PageFlipView` and `PdfFlipBook`:
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `controller` | | Turn pages from code |
+| `onPageChanged` | | Called with the page index after a turn or jump |
+| `onCenterTap` | | Tap in the middle of the page |
+| `paperColor` | white | Paper colour behind pages and on the back |
+| `enableZoom` | true | Pinch and double tap zoom; one finger pans while zoomed |
+| `maxScale` | 4 | Largest zoom factor |
+
+`PageFlipView` only:
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `itemCount`, `itemBuilder` | required | The pages |
+| `initialPage` | 0 | First page when no controller is given |
+| `flipDuration` | 300 ms | Length of a full turn |
+| `followFactor` | 0.22 | How fast the curl catches the finger; lower feels heavier |
+| `backsideOpacity` | 0.2 | How much of the page shows through its back |
+| `edgeTapFraction` | 0.2 | Width of the tap-to-turn zones |
+| `enableDrag`, `enableTapToFlip` | true | Turn gestures on or off |
+| `doubleTapScale` | 2.5 | Zoom factor of a double tap |
+| `onZoomChanged` | | Called when a zoom settles, e.g. to load a sharper image |
+
+`PdfFlipBook` only: `onLoaded`, `loadingBuilder`, `placeholderBuilder`, `pageErrorBuilder`, `errorBuilder`, `password`, `colorFilter`, and `headers` / `timeout` for `.network`.
+
+Taps on the page edges turn pages at once. A tap in the middle waits a moment (the double tap window) before calling `onCenterTap`, because a second tap there zooms.
 
 ## Which PDF engine
 
@@ -113,7 +175,7 @@ The fold line is the perpendicular bisector between the page corner and the fing
 
 ## Example
 
-`example/` has a demo app with a PDF tab (a small bundled sample PDF) and a widgets tab:
+[`example/`](example) has three tabs: a bundled PDF with night mode, a PDF downloaded from a URL, and plain widgets.
 
 ```sh
 cd example
