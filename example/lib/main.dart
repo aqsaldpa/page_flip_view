@@ -25,6 +25,7 @@ class DemoHome extends StatefulWidget {
 class _DemoHomeState extends State<DemoHome> {
   final controller = PageFlipController();
   int page = 0;
+  bool night = false;
 
   @override
   void dispose() {
@@ -46,6 +47,10 @@ class _DemoHomeState extends State<DemoHome> {
         ),
         actions: [
           IconButton(
+            onPressed: () => setState(() => night = !night),
+            icon: Icon(night ? Icons.light_mode : Icons.dark_mode),
+          ),
+          IconButton(
             onPressed: controller.previous,
             icon: const Icon(Icons.chevron_left),
           ),
@@ -64,6 +69,8 @@ class _DemoHomeState extends State<DemoHome> {
               'assets/sample.pdf',
               controller: controller,
               onPageChanged: (value) => setState(() => page = value),
+              colorFilter: night ? PdfFlipBook.nightMode : null,
+              paperColor: night ? const Color(0xFF1E1E1E) : Colors.white,
             ),
           ),
           Padding(

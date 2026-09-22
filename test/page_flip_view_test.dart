@@ -53,4 +53,57 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.page, 3);
   });
+
+  testWidgets('double tap zooms, edge taps pause while zoomed', (tester) async {
+    final controller = PageFlipController();
+    final changes = <int>[];
+    final zooms = <double>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PageFlipView(
+          itemCount: 4,
+          controller: controller,
+          onPageChanged: changes.add,
+          onZoomChanged: zooms.add,
+          itemBuilder: (context, index) => Center(child: Text('page $index')),
+        ),
+      ),
+    );
+
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pumpAndSettle();
+    expect(zooms.last, closeTo(2.5, 0.01));
+
+    await tester.tapAt(const Offset(790, 300));
+    await tester.pumpAndSettle();
+    expect(changes, isEmpty);
+
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pumpAndSettle();
+    expect(zooms.last, 1);
+
+    await tester.tapAt(const Offset(790, 300));
+    await tester.pumpAndSettle();
+    expect(changes, [1]);
+  });
+
+  testWidgets('single middle tap reaches onCenterTap', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PageFlipView(
+          itemCount: 2,
+          onCenterTap: () => taps++,
+          itemBuilder: (context, index) => const SizedBox.expand(),
+        ),
+      ),
+    );
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(taps, 1);
+  });
 }

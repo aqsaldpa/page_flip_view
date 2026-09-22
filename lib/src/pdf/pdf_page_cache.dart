@@ -18,6 +18,7 @@ class PdfPageCache extends ChangeNotifier {
     this.maxPixelSide = 2048,
     this.previewPixelSide = 360,
     this.prefetchRadius = 2,
+    this.maxZoomPixelSide = 4096,
   });
 
   final PdfDocument document;
@@ -26,6 +27,7 @@ class PdfPageCache extends ChangeNotifier {
   final int maxPixelSide;
   final int previewPixelSide;
   final int prefetchRadius;
+  final int maxZoomPixelSide;
 
   final LinkedHashMap<int, ui.Image> _full = LinkedHashMap();
   final LinkedHashMap<int, ui.Image> _preview = LinkedHashMap();
@@ -35,6 +37,10 @@ class PdfPageCache extends ChangeNotifier {
   Size _pixelSize = Size.zero;
   int _center = 0;
   bool _disposed = false;
+  ui.Image? _zoomImage;
+  int? _zoomIndex;
+  double _zoomScale = 1;
+  PdfPageRenderCancellationToken? _zoomToken;
 
   int get pageCount => document.pages.length;
 
@@ -43,7 +49,71 @@ class PdfPageCache extends ChangeNotifier {
     return page.height == 0 ? 1 : page.width / page.height;
   }
 
-  ui.Image? imageAt(int index) => _full[index] ?? _preview[index];
+  ui.Image? imageAt(int index) {
+    final zoomed = _zoomImage;
+    if (zoomed != null && _zoomIndex == index) return zoomed;
+    return _full[index] ?? _preview[index];
+  }
+
+  void zoom(int index, double scale) {
+    if (scale <= 1.05) {
+      _clearZoom();
+      notifyListeners();
+      return;
+    }
+    if (_zoomIndex == index && (scale - _zoomScale).abs() < 0.25) return;
+    _renderZoom(index, scale);
+  }
+
+  Future<void> _renderZoom(int index, double scale) async {
+    _zoomToken?.cancel();
+    final page = document.pages[index];
+    final fit = math.min(
+      _pixelSize.width / page.width,
+      _pixelSize.height / page.height,
+    );
+    final factor = math.min(
+      maxZoomPixelSide / math.max(page.width, page.height),
+      fit * scale,
+    );
+    final token = page.createCancellationToken();
+    _zoomToken = token;
+    try {
+      final rendered = await page.render(
+        width: (page.width * factor).round(),
+        height: (page.height * factor).round(),
+        fullWidth: page.width * factor,
+        fullHeight: page.height * factor,
+        backgroundColor: 0xffffffff,
+        cancellationToken: token,
+      );
+      if (rendered == null) return;
+      final image = await rendered.createImage();
+      rendered.dispose();
+      if (_disposed || _zoomToken != token) {
+        image.dispose();
+        return;
+      }
+      _zoomImage?.dispose();
+      _zoomImage = image;
+      _zoomIndex = index;
+      _zoomScale = scale;
+      notifyListeners();
+    } catch (_) {
+      return;
+    } finally {
+      if (_zoomToken == token) _zoomToken = null;
+    }
+  }
+
+  void _clearZoom() {
+    _zoomToken?.cancel();
+    _zoomToken = null;
+    _zoomImage?.dispose();
+    _zoomImage = null;
+    _zoomIndex = null;
+    _zoomScale = 1;
+  }
 
   bool hasFailed(int index) => _failed.contains(index);
 
@@ -58,6 +128,7 @@ class PdfPageCache extends ChangeNotifier {
   }
 
   void prefetch(int center) {
+    if (_zoomIndex != null && _zoomIndex != center) _clearZoom();
     _center = center;
     if (_pixelSize.isEmpty) return;
     final window = [
@@ -165,6 +236,7 @@ class PdfPageCache extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _clearZoom();
     for (final token in _pending.values) {
       token.cancel();
     }

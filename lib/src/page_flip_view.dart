@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -45,6 +46,10 @@ class PageFlipView extends StatefulWidget {
     this.flipDuration = const Duration(milliseconds: 300),
     this.followFactor = 0.22,
     this.edgeTapFraction = 0.2,
+    this.enableZoom = true,
+    this.maxScale = 4,
+    this.doubleTapScale = 2.5,
+    this.onZoomChanged,
   });
 
   /// Number of pages.
@@ -91,6 +96,21 @@ class PageFlipView extends StatefulWidget {
   /// fraction of the page width.
   final double edgeTapFraction;
 
+  /// Whether pinch and double tap zoom into the current page. While zoomed,
+  /// one finger pans the page and turning is paused until you zoom out.
+  final bool enableZoom;
+
+  /// Largest zoom factor.
+  final double maxScale;
+
+  /// Zoom factor a double tap jumps to. Double tap again to zoom out.
+  final double doubleTapScale;
+
+  /// Called with the zoom factor of the current page whenever a zoom
+  /// gesture or animation settles (1 means not zoomed). Useful to load a
+  /// sharper version of the page.
+  final ValueChanged<double>? onZoomChanged;
+
   @override
   State<PageFlipView> createState() => _PageFlipViewState();
 }
@@ -99,6 +119,10 @@ class _PageFlipViewState extends State<PageFlipView>
     with TickerProviderStateMixin {
   late final AnimationController _motion = AnimationController(vsync: this);
   late final Ticker _follow = createTicker(_onFollowTick);
+  late final AnimationController _zoomMotion = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
 
   late int _page = widget.controller?.page ?? widget.initialPage;
   PageTurn? _turn;
@@ -108,6 +132,18 @@ class _PageFlipViewState extends State<PageFlipView>
   Offset _dragStart = Offset.zero;
   Duration _lastTick = Duration.zero;
   Offset Function(double)? _motionPath;
+
+  double _scale = 1;
+  Offset _pan = Offset.zero;
+  double _gestureStartScale = 1;
+  Offset _gestureStartPan = Offset.zero;
+  Offset _gestureStartFocal = Offset.zero;
+  bool _zooming = false;
+  Timer? _pendingTap;
+  Offset _lastTapAt = Offset.zero;
+  VoidCallback? _zoomListener;
+
+  bool get _zoomed => _scale > 1.01;
 
   bool get _busy => _motion.isAnimating;
 
@@ -137,12 +173,15 @@ class _PageFlipViewState extends State<PageFlipView>
     if (widget.controller?._state == this) widget.controller?._state = null;
     _follow.dispose();
     _motion.dispose();
+    _zoomMotion.dispose();
+    _pendingTap?.cancel();
     super.dispose();
   }
 
   void _jumpTo(int page) {
     _follow.stop();
     _motion.stop();
+    _resetZoom();
     setState(() {
       _turn = null;
       _page = page.clamp(0, math.max(0, widget.itemCount - 1));
@@ -165,14 +204,53 @@ class _PageFlipViewState extends State<PageFlipView>
     );
   }
 
-  void _onDragStart(DragStartDetails details) {
+  void _onScaleStart(ScaleStartDetails details) {
     if (_busy) return;
-    _dragStart = details.localPosition;
+    _zoomMotion.stop();
+    _dragStart = details.localFocalPoint;
+    _gestureStartFocal = details.localFocalPoint;
+    _gestureStartScale = _scale;
+    _gestureStartPan = _pan;
+    _zooming = false;
   }
 
-  void _onDragUpdate(DragUpdateDetails details) {
+  void _onScaleUpdate(ScaleUpdateDetails details) {
     if (_busy) return;
-    final delta = details.localPosition - _dragStart;
+    final pinching = details.pointerCount >= 2 && widget.enableZoom;
+    if (_turn == null && (pinching || _zoomed || _zooming)) {
+      _updateZoom(details, pinching: pinching);
+      return;
+    }
+    if (widget.enableDrag) _updateTurn(details.localFocalPoint);
+  }
+
+  void _updateZoom(ScaleUpdateDetails details, {required bool pinching}) {
+    if (!_zooming) {
+      _zooming = true;
+      _gestureStartFocal = details.localFocalPoint;
+      _gestureStartScale = _scale;
+      _gestureStartPan = _pan;
+    }
+    final scale = pinching
+        ? (_gestureStartScale * details.scale).clamp(1.0, widget.maxScale)
+        : _scale;
+    final anchor = (_gestureStartFocal - _gestureStartPan) / _gestureStartScale;
+    final pan = pinching
+        ? details.localFocalPoint - anchor * scale
+        : _gestureStartPan + (details.localFocalPoint - _gestureStartFocal);
+    setState(() {
+      _scale = scale;
+      _pan = _clampPan(pan, scale);
+    });
+  }
+
+  Offset _clampPan(Offset pan, double scale) => Offset(
+    pan.dx.clamp(_size.width * (1 - scale), 0.0),
+    pan.dy.clamp(_size.height * (1 - scale), 0.0),
+  );
+
+  void _updateTurn(Offset position) {
+    final delta = position - _dragStart;
     var active = _turn;
     if (active == null) {
       if (delta.dx.abs() < 4) return;
@@ -190,6 +268,57 @@ class _PageFlipViewState extends State<PageFlipView>
     }
   }
 
+  void _onScaleEnd(ScaleEndDetails details) {
+    if (_zooming) {
+      _zooming = false;
+      if (_scale < 1.05) {
+        _animateZoom(1, Offset.zero);
+      } else {
+        widget.onZoomChanged?.call(_scale);
+      }
+      return;
+    }
+    _endTurn(details.velocity.pixelsPerSecond.dx);
+  }
+
+  void _toggleZoomAt(Offset position) {
+    if (!widget.enableZoom || _busy || _turn != null) return;
+    if (_zoomed) {
+      _animateZoom(1, Offset.zero);
+      return;
+    }
+    final scale = widget.doubleTapScale.clamp(1.0, widget.maxScale);
+    _animateZoom(scale, _clampPan(position * (1 - scale), scale));
+  }
+
+  void _animateZoom(double scale, Offset pan) {
+    final fromScale = _scale;
+    final fromPan = _pan;
+    final listener = _zoomListener;
+    if (listener != null) _zoomMotion.removeListener(listener);
+    void tick() {
+      final t = Curves.easeOutCubic.transform(_zoomMotion.value);
+      setState(() {
+        _scale = fromScale + (scale - fromScale) * t;
+        _pan = Offset.lerp(fromPan, pan, t) ?? pan;
+      });
+    }
+
+    _zoomListener = tick;
+    _zoomMotion.addListener(tick);
+    _zoomMotion.forward(from: 0).then((_) {
+      if (mounted) widget.onZoomChanged?.call(_scale);
+    }, onError: (_) {});
+  }
+
+  void _resetZoom() {
+    if (!_zoomed && _pan == Offset.zero) return;
+    _zoomMotion.stop();
+    _scale = 1;
+    _pan = Offset.zero;
+    widget.onZoomChanged?.call(1);
+  }
+
   void _onFollowTick(Duration elapsed) {
     final frames = _lastTick == Duration.zero
         ? 1.0
@@ -199,11 +328,10 @@ class _PageFlipViewState extends State<PageFlipView>
     setState(() => _shown = Offset.lerp(_shown, _target, alpha) ?? _target);
   }
 
-  void _onDragEnd(DragEndDetails details) {
+  void _endTurn(double velocity) {
     final active = _turn;
     if (active == null || _busy) return;
     _follow.stop();
-    final velocity = details.velocity.pixelsPerSecond.dx;
     final commit = active.forward
         ? velocity < -250 || (velocity <= 250 && _target.dx < _size.width / 2)
         : velocity > 250 || (velocity >= -250 && _target.dx > 0);
@@ -283,15 +411,42 @@ class _PageFlipViewState extends State<PageFlipView>
 
   void _onTapUp(TapUpDetails details) {
     if (_busy || _turn != null) return;
-    final x = details.localPosition.dx;
-    final edge = widget.enableTapToFlip ? widget.edgeTapFraction : 0.0;
-    if (x > _size.width * (1 - edge)) {
+    final position = details.localPosition;
+    final edge = widget.enableTapToFlip && !_zoomed
+        ? widget.edgeTapFraction
+        : 0.0;
+    if (position.dx > _size.width * (1 - edge)) {
       _autoTurn(forward: true);
-    } else if (x < _size.width * edge) {
-      _autoTurn(forward: false);
-    } else {
-      widget.onCenterTap?.call();
+      return;
     }
+    if (position.dx < _size.width * edge) {
+      _autoTurn(forward: false);
+      return;
+    }
+    _onMiddleTap(position);
+  }
+
+  void _onMiddleTap(Offset position) {
+    final pending = _pendingTap;
+    if (widget.enableZoom &&
+        pending != null &&
+        pending.isActive &&
+        (position - _lastTapAt).distance < 40) {
+      pending.cancel();
+      _pendingTap = null;
+      _toggleZoomAt(position);
+      return;
+    }
+    if (!widget.enableZoom) {
+      widget.onCenterTap?.call();
+      return;
+    }
+    _lastTapAt = position;
+    _pendingTap?.cancel();
+    _pendingTap = Timer(kDoubleTapTimeout, () {
+      _pendingTap = null;
+      if (mounted) widget.onCenterTap?.call();
+    });
   }
 
   Widget _pageAt(int index) => RepaintBoundary(
@@ -309,9 +464,9 @@ class _PageFlipViewState extends State<PageFlipView>
           behavior: HitTestBehavior.opaque,
           dragStartBehavior: DragStartBehavior.down,
           onTapUp: _onTapUp,
-          onHorizontalDragStart: drag ? _onDragStart : null,
-          onHorizontalDragUpdate: drag ? _onDragUpdate : null,
-          onHorizontalDragEnd: drag ? _onDragEnd : null,
+          onScaleStart: drag || widget.enableZoom ? _onScaleStart : null,
+          onScaleUpdate: drag || widget.enableZoom ? _onScaleUpdate : null,
+          onScaleEnd: drag || widget.enableZoom ? _onScaleEnd : null,
           child: ClipRect(child: _layers()),
         );
       },
@@ -321,7 +476,14 @@ class _PageFlipViewState extends State<PageFlipView>
   Widget _layers() {
     if (widget.itemCount == 0) return const SizedBox.shrink();
     final active = _turn;
-    if (active == null) return _pageAt(_page);
+    if (active == null) {
+      if (!_zoomed) return _pageAt(_page);
+      return Transform(
+        transform: Matrix4.translationValues(_pan.dx, _pan.dy, 0)
+          ..multiply(Matrix4.diagonal3Values(_scale, _scale, 1)),
+        child: _pageAt(_page),
+      );
+    }
     final fold = PageFold.resolve(
       size: _size,
       corner: active.corner,

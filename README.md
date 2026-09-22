@@ -8,6 +8,8 @@ Turn pages like a real book or magazine. The page corner lifts diagonally, follo
 - Release past the middle or fling to turn; otherwise the page falls back
 - Tap the page edges to turn, tap the middle for your own action (show a toolbar, for example)
 - Back of the turning page shows the page faintly through the paper, with soft fold shadows
+- Pinch or double tap to zoom; PDF pages are re-rendered sharp at the zoom level
+- Night mode for PDFs with one line: `colorFilter: PdfFlipBook.nightMode`
 - `PageFlipController` for next / previous / jump from buttons or sliders
 - PDF books with no spinner while turning: a small preview appears at once and sharpens a moment later
 
@@ -18,7 +20,7 @@ dependencies:
   page_flip_view:
     git:
       url: https://github.com/aqsaldpa/page_flip_view.git
-      ref: v0.1.0
+      ref: v0.2.0
 ```
 
 ## Any widgets
@@ -76,6 +78,21 @@ Dispose the controller in your `State.dispose`.
 | `paperColor` | white | Paper colour behind pages and on the back |
 | `edgeTapFraction` | 0.2 | Width of the tap-to-turn zones |
 | `enableDrag`, `enableTapToFlip` | true | Turn gestures on or off |
+| `enableZoom` | true | Pinch and double tap zoom; one finger pans while zoomed |
+| `maxScale` / `doubleTapScale` | 4 / 2.5 | Zoom limits |
+| `onZoomChanged` | | Called when a zoom settles, e.g. to load a sharper image |
+
+Night mode for PDFs:
+
+```dart
+PdfFlipBook.file(
+  path,
+  colorFilter: PdfFlipBook.nightMode,
+  paperColor: const Color(0xFF1E1E1E),
+)
+```
+
+Taps on the page edges turn pages at once. A tap in the middle waits a moment (double tap window) before calling `onCenterTap`, because a second tap there zooms.
 
 `PdfFlipBook` also takes `loadingBuilder` (while the file opens), `placeholderBuilder` (a page before its first preview, plain paper by default), `pageErrorBuilder`, `errorBuilder` (the file could not be opened) and `password`.
 
@@ -107,7 +124,6 @@ flutter run
 
 - Right-to-left books (for example Arabic or Japanese)
 - Two-page spreads on tablets
-- Pinch zoom inside the flip view
 
 ## License
 

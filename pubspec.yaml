@@ -1,6 +1,6 @@
 name: page_flip_view
 description: Turn pages like a real book. A diagonal corner curl that follows the finger, for any widgets and for PDF files (rendered with pdfrx).
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/aqsaldpa/page_flip_view
 issue_tracker: https://github.com/aqsaldpa/page_flip_view/issues
 screenshots:

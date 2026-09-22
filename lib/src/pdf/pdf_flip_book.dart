@@ -46,6 +46,9 @@ class PdfFlipBook extends StatefulWidget {
     PdfPageErrorBuilder? pageErrorBuilder,
     PdfDocumentErrorBuilder? errorBuilder,
     String? password,
+    ColorFilter? colorFilter,
+    bool enableZoom = true,
+    double maxScale = 4,
   }) : this._(
          key: key,
          filePath: path,
@@ -59,6 +62,9 @@ class PdfFlipBook extends StatefulWidget {
          pageErrorBuilder: pageErrorBuilder,
          errorBuilder: errorBuilder,
          password: password,
+         colorFilter: colorFilter,
+         enableZoom: enableZoom,
+         maxScale: maxScale,
        );
 
   /// Opens the PDF bundled as the Flutter asset [name].
@@ -75,6 +81,9 @@ class PdfFlipBook extends StatefulWidget {
     PdfPageErrorBuilder? pageErrorBuilder,
     PdfDocumentErrorBuilder? errorBuilder,
     String? password,
+    ColorFilter? colorFilter,
+    bool enableZoom = true,
+    double maxScale = 4,
   }) : this._(
          key: key,
          assetName: name,
@@ -88,6 +97,9 @@ class PdfFlipBook extends StatefulWidget {
          pageErrorBuilder: pageErrorBuilder,
          errorBuilder: errorBuilder,
          password: password,
+         colorFilter: colorFilter,
+         enableZoom: enableZoom,
+         maxScale: maxScale,
        );
 
   /// Opens a PDF from memory, for example after downloading or decrypting it.
@@ -104,6 +116,9 @@ class PdfFlipBook extends StatefulWidget {
     PdfPageErrorBuilder? pageErrorBuilder,
     PdfDocumentErrorBuilder? errorBuilder,
     String? password,
+    ColorFilter? colorFilter,
+    bool enableZoom = true,
+    double maxScale = 4,
   }) : this._(
          key: key,
          bytes: data,
@@ -117,6 +132,9 @@ class PdfFlipBook extends StatefulWidget {
          pageErrorBuilder: pageErrorBuilder,
          errorBuilder: errorBuilder,
          password: password,
+         colorFilter: colorFilter,
+         enableZoom: enableZoom,
+         maxScale: maxScale,
        );
 
   /// Shows a [PdfDocument] you already opened with pdfrx. The caller keeps
@@ -131,6 +149,9 @@ class PdfFlipBook extends StatefulWidget {
     Color paperColor = const Color(0xFFFFFFFF),
     PdfPagePlaceholderBuilder? placeholderBuilder,
     PdfPageErrorBuilder? pageErrorBuilder,
+    ColorFilter? colorFilter,
+    bool enableZoom = true,
+    double maxScale = 4,
   }) : this._(
          key: key,
          openedDocument: document,
@@ -141,6 +162,9 @@ class PdfFlipBook extends StatefulWidget {
          paperColor: paperColor,
          placeholderBuilder: placeholderBuilder,
          pageErrorBuilder: pageErrorBuilder,
+         colorFilter: colorFilter,
+         enableZoom: enableZoom,
+         maxScale: maxScale,
        );
 
   const PdfFlipBook._({
@@ -159,7 +183,19 @@ class PdfFlipBook extends StatefulWidget {
     this.pageErrorBuilder,
     this.errorBuilder,
     this.password,
+    this.colorFilter,
+    this.enableZoom = true,
+    this.maxScale = 4,
   });
+
+  /// A [colorFilter] for reading at night: inverts the page so it becomes
+  /// light text on a dark page. Pair it with a dark [paperColor].
+  static const ColorFilter nightMode = ColorFilter.matrix(<double>[
+    -1, 0, 0, 0, 255, //
+    0, -1, 0, 0, 255, //
+    0, 0, -1, 0, 255, //
+    0, 0, 0, 1, 0, //
+  ]);
 
   final String? filePath;
   final String? assetName;
@@ -197,6 +233,16 @@ class PdfFlipBook extends StatefulWidget {
   /// Password for encrypted PDFs.
   final String? password;
 
+  /// Filter applied to every rendered page, for example [nightMode].
+  final ColorFilter? colorFilter;
+
+  /// Pinch or double tap to zoom into a page. The zoomed page is rendered
+  /// again at the higher resolution, so text stays sharp.
+  final bool enableZoom;
+
+  /// Largest zoom factor.
+  final double maxScale;
+
   @override
   State<PdfFlipBook> createState() => _PdfFlipBookState();
 }
@@ -206,6 +252,7 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
   PdfPageCache? _cache;
   Object? _error;
   int _generation = 0;
+  int _page = 0;
 
   bool get _ownsDocument => widget.openedDocument == null;
 
@@ -278,8 +325,8 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
       }
       setState(() {
         _document = opened;
-        _cache = PdfPageCache(document: opened)
-          ..prefetch(widget.controller?.page ?? 0);
+        _page = widget.controller?.page ?? 0;
+        _cache = PdfPageCache(document: opened)..prefetch(_page);
       });
       widget.onLoaded?.call(opened.pages.length);
     } catch (error) {
@@ -318,16 +365,21 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
               controller: widget.controller,
               paperColor: widget.paperColor,
               onPageChanged: (page) {
+                _page = page;
                 cache.prefetch(page);
                 widget.onPageChanged?.call(page);
               },
               onCenterTap: widget.onCenterTap,
+              enableZoom: widget.enableZoom,
+              maxScale: widget.maxScale,
+              onZoomChanged: (scale) => cache.zoom(_page, scale),
               itemBuilder: (context, index) => PdfPageImage(
                 cache: cache,
                 index: index,
                 paperColor: widget.paperColor,
                 placeholderBuilder: widget.placeholderBuilder,
                 pageErrorBuilder: widget.pageErrorBuilder,
+                colorFilter: widget.colorFilter,
               ),
             );
           },

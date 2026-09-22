@@ -11,6 +11,7 @@ class PdfPageImage extends StatelessWidget {
     required this.paperColor,
     this.placeholderBuilder,
     this.pageErrorBuilder,
+    this.colorFilter,
   });
 
   final PdfPageCache cache;
@@ -18,6 +19,7 @@ class PdfPageImage extends StatelessWidget {
   final Color paperColor;
   final PdfPagePlaceholderBuilder? placeholderBuilder;
   final PdfPageErrorBuilder? pageErrorBuilder;
+  final ColorFilter? colorFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -28,11 +30,14 @@ class PdfPageImage extends StatelessWidget {
         builder: (context, _) {
           final image = cache.imageAt(index);
           if (image != null) {
-            return RawImage(
+            final picture = RawImage(
               image: image,
               fit: BoxFit.fill,
               filterQuality: FilterQuality.medium,
             );
+            final filter = colorFilter;
+            if (filter == null) return picture;
+            return ColorFiltered(colorFilter: filter, child: picture);
           }
           final errorBuilder = pageErrorBuilder;
           if (cache.hasFailed(index) && errorBuilder != null) {
