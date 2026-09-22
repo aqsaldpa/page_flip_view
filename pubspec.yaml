@@ -1,0 +1,29 @@
+name: page_flip_view
+description: Turn pages like a real book. A diagonal corner curl that follows the finger, for any widgets and for PDF files (rendered with pdfrx).
+version: 0.1.0
+repository: https://github.com/aqsaldpa/page_flip_view
+issue_tracker: https://github.com/aqsaldpa/page_flip_view/issues
+screenshots:
+  - description: A PDF page turned with the corner curl
+    path: doc/demo.gif
+
+topics:
+  - page-flip
+  - page-curl
+  - book
+  - pdf
+  - flipbook
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  pdfrx: ^2.6.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

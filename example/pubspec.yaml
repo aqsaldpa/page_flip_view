@@ -1,0 +1,17 @@
+name: page_flip_view_example
+description: Demo of page_flip_view with widgets and a PDF.
+publish_to: none
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  page_flip_view:
+    path: ..
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sample.pdf
