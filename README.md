@@ -1,5 +1,7 @@
 # page_flip_view
 
+[![pub package](https://img.shields.io/pub/v/page_flip_view.svg)](https://pub.dev/packages/page_flip_view)
+
 <p align="center"><img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/demo.gif" width="340" alt="A PDF page being turned with a diagonal corner curl"></p>
 
 Turn pages like a real book or magazine. The page corner lifts diagonally, follows your finger, and falls back or turns over when you let go. Use it for PDF books, magazines, catalogues, comics, or any list of widgets.
@@ -19,12 +21,15 @@ Turn pages like a real book or magazine. The page corner lifts diagonally, follo
 
 **1. Add the package**
 
+```sh
+flutter pub add page_flip_view
+```
+
+or in `pubspec.yaml`:
+
 ```yaml
 dependencies:
-  page_flip_view:
-    git:
-      url: https://github.com/aqsaldpa/page_flip_view.git
-      ref: v0.3.0
+  page_flip_view: ^0.3.0
 ```
 
 **2. Platform setup** (only needed for PDFs)
