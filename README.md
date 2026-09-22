@@ -2,7 +2,11 @@
 
 [![pub package](https://img.shields.io/pub/v/page_flip_view.svg)](https://pub.dev/packages/page_flip_view)
 
-<p align="center"><img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/demo.gif" width="340" alt="A PDF page being turned with a diagonal corner curl"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/demo.gif" width="300" alt="A PDF page being turned with a diagonal corner curl"></p>
+
+| Two pages on wide screens | Pinch and double tap zoom | Night mode |
+|:---:|:---:|:---:|
+| <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/spread.gif" width="300" alt="Two-page spread turning"> | <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/zoom.gif" width="170" alt="Double tap zoom and pan"> | <img src="https://raw.githubusercontent.com/aqsaldpa/page_flip_view/main/doc/night.gif" width="170" alt="Night mode"> |
 
 Turn pages like a real book or magazine. The page corner lifts diagonally, follows your finger, and falls back or turns over when you let go. Use it for PDF books, magazines, catalogues, comics, or any list of widgets.
 
@@ -12,6 +16,7 @@ Turn pages like a real book or magazine. The page corner lifts diagonally, follo
 - Release past the middle or fling to turn; otherwise the page falls back
 - Tap the page edges to turn; tap the middle for your own action (show a toolbar, for example)
 - The back of the turning page shows the page faintly through the paper, with soft fold shadows
+- Two pages side by side like an open book on landscape phones, tablets and unfolded foldables, switching live when the device rotates or folds
 - Pinch or double tap to zoom; PDF pages are re-rendered sharp at the zoom level
 - PDF from a URL, a file, an asset or bytes, with download progress, passwords and night mode
 - No spinner while turning PDF pages: a small preview appears at once and sharpens a moment later
@@ -29,7 +34,7 @@ or in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  page_flip_view: ^0.3.0
+  page_flip_view: ^0.4.0
 ```
 
 **2. Platform setup** (only needed for PDFs)
@@ -108,6 +113,32 @@ controller.page;        // current page, zero based (the controller is a ChangeN
 
 Dispose the controller in your `State.dispose`.
 
+## Tablets and foldables
+
+`PdfFlipBook` picks the layout by itself (`spreadMode: PageSpreadMode.auto`):
+
+| Screen | Layout |
+|---|---|
+| Phone, or foldable folded (cover screen) | One page |
+| Foldable unfolded and held upright (Galaxy Z Fold, Pixel Fold) | One large page: the screen is almost square, so two pages would each be too small |
+| Landscape phone, tablet, foldable unfolded sideways | Two pages like an open book; the spine sits in the middle, on the fold |
+
+When the device rotates, folds or unfolds, the book switches layout on the fly and stays on the same page. A turn in progress is cancelled cleanly.
+
+Force a layout with `spreadMode: PageSpreadMode.single` or `PageSpreadMode.double`. In two-page mode the first page stands alone on the right, like a book cover; turn that off with `coverAlone: false`.
+
+For your own widgets:
+
+```dart
+LayoutBuilder(builder: (context, box) {
+  final spread = PageFlipView.shouldSpread(box.biggest, pageAspectRatio);
+  return AspectRatio(
+    aspectRatio: spread ? pageAspectRatio * 2 : pageAspectRatio,
+    child: PageFlipView(spread: spread, itemCount: n, itemBuilder: buildPage),
+  );
+})
+```
+
 ## Night mode
 
 ```dart
@@ -144,6 +175,7 @@ PdfFlipBook.network(
 | `paperColor` | white | Paper colour behind pages and on the back |
 | `enableZoom` | true | Pinch and double tap zoom; one finger pans while zoomed |
 | `maxScale` | 4 | Largest zoom factor |
+| `coverAlone` | true | In two-page mode, the first page stands alone on the right |
 
 `PageFlipView` only:
 
@@ -158,8 +190,9 @@ PdfFlipBook.network(
 | `enableDrag`, `enableTapToFlip` | true | Turn gestures on or off |
 | `doubleTapScale` | 2.5 | Zoom factor of a double tap |
 | `onZoomChanged` | | Called when a zoom settles, e.g. to load a sharper image |
+| `spread` | false | Two pages side by side; give the view twice a page's width |
 
-`PdfFlipBook` only: `onLoaded`, `loadingBuilder`, `placeholderBuilder`, `pageErrorBuilder`, `errorBuilder`, `password`, `colorFilter`, and `headers` / `timeout` for `.network`.
+`PdfFlipBook` only: `spreadMode` (auto / single / double), `onLoaded`, `loadingBuilder`, `placeholderBuilder`, `pageErrorBuilder`, `errorBuilder`, `password`, `colorFilter`, and `headers` / `timeout` for `.network`.
 
 Taps on the page edges turn pages at once. A tap in the middle waits a moment (the double tap window) before calling `onCenterTap`, because a second tap there zooms.
 
@@ -190,7 +223,7 @@ flutter run
 ## Not yet
 
 - Right-to-left books (for example Arabic or Japanese)
-- Two-page spreads on tablets
+- Dual-screen devices with a physical hinge gap (Surface Duo): the spine is centred, not moved around the gap
 
 ## License
 

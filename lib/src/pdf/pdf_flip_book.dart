@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../page_flip_view.dart';
+import '../page_spread.dart';
 import 'pdf_page_cache.dart';
 import 'pdf_page_image.dart';
 
@@ -59,6 +60,8 @@ class PdfFlipBook extends StatefulWidget {
     ColorFilter? colorFilter,
     bool enableZoom = true,
     double maxScale = 4,
+    PageSpreadMode spreadMode = PageSpreadMode.auto,
+    bool coverAlone = true,
   }) : this._(
          key: key,
          uri: uri,
@@ -77,6 +80,8 @@ class PdfFlipBook extends StatefulWidget {
          colorFilter: colorFilter,
          enableZoom: enableZoom,
          maxScale: maxScale,
+         spreadMode: spreadMode,
+         coverAlone: coverAlone,
        );
 
   /// Opens the PDF at [path] on the device.
@@ -96,6 +101,8 @@ class PdfFlipBook extends StatefulWidget {
     ColorFilter? colorFilter,
     bool enableZoom = true,
     double maxScale = 4,
+    PageSpreadMode spreadMode = PageSpreadMode.auto,
+    bool coverAlone = true,
   }) : this._(
          key: key,
          filePath: path,
@@ -112,6 +119,8 @@ class PdfFlipBook extends StatefulWidget {
          colorFilter: colorFilter,
          enableZoom: enableZoom,
          maxScale: maxScale,
+         spreadMode: spreadMode,
+         coverAlone: coverAlone,
        );
 
   /// Opens the PDF bundled as the Flutter asset [name].
@@ -131,6 +140,8 @@ class PdfFlipBook extends StatefulWidget {
     ColorFilter? colorFilter,
     bool enableZoom = true,
     double maxScale = 4,
+    PageSpreadMode spreadMode = PageSpreadMode.auto,
+    bool coverAlone = true,
   }) : this._(
          key: key,
          assetName: name,
@@ -147,6 +158,8 @@ class PdfFlipBook extends StatefulWidget {
          colorFilter: colorFilter,
          enableZoom: enableZoom,
          maxScale: maxScale,
+         spreadMode: spreadMode,
+         coverAlone: coverAlone,
        );
 
   /// Opens a PDF from memory, for example after downloading or decrypting it.
@@ -166,6 +179,8 @@ class PdfFlipBook extends StatefulWidget {
     ColorFilter? colorFilter,
     bool enableZoom = true,
     double maxScale = 4,
+    PageSpreadMode spreadMode = PageSpreadMode.auto,
+    bool coverAlone = true,
   }) : this._(
          key: key,
          bytes: data,
@@ -182,6 +197,8 @@ class PdfFlipBook extends StatefulWidget {
          colorFilter: colorFilter,
          enableZoom: enableZoom,
          maxScale: maxScale,
+         spreadMode: spreadMode,
+         coverAlone: coverAlone,
        );
 
   /// Shows a [PdfDocument] you already opened with pdfrx. The caller keeps
@@ -199,6 +216,8 @@ class PdfFlipBook extends StatefulWidget {
     ColorFilter? colorFilter,
     bool enableZoom = true,
     double maxScale = 4,
+    PageSpreadMode spreadMode = PageSpreadMode.auto,
+    bool coverAlone = true,
   }) : this._(
          key: key,
          document: document,
@@ -212,6 +231,8 @@ class PdfFlipBook extends StatefulWidget {
          colorFilter: colorFilter,
          enableZoom: enableZoom,
          maxScale: maxScale,
+         spreadMode: spreadMode,
+         coverAlone: coverAlone,
        );
 
   const PdfFlipBook._({
@@ -236,6 +257,8 @@ class PdfFlipBook extends StatefulWidget {
     this.colorFilter,
     this.enableZoom = true,
     this.maxScale = 4,
+    this.spreadMode = PageSpreadMode.auto,
+    this.coverAlone = true,
   }) : _filePath = filePath,
        _assetName = assetName,
        _bytes = bytes,
@@ -302,6 +325,16 @@ class PdfFlipBook extends StatefulWidget {
 
   /// Largest zoom factor.
   final double maxScale;
+
+  /// One page, two pages side by side, or [PageSpreadMode.auto]: two pages
+  /// when the space is wide (landscape, tablets, unfolded foldables such as
+  /// the Galaxy Z Fold, where the spine lands on the fold). The book
+  /// switches live when the device rotates or folds, keeping the page.
+  final PageSpreadMode spreadMode;
+
+  /// In two-page mode, whether the first page stands alone on the right,
+  /// like the cover of a printed book.
+  final bool coverAlone;
 
   bool _sameSource(PdfFlipBook other) =>
       other._filePath == _filePath &&
@@ -433,37 +466,65 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
     }
     if (cache.pageCount == 0) return const SizedBox.shrink();
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    return Center(
-      child: AspectRatio(
-        aspectRatio: cache.aspectRatioOf(0),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            cache.resize(constraints.biggest, devicePixelRatio);
-            return PageFlipView(
-              itemCount: cache.pageCount,
-              controller: widget.controller,
-              paperColor: widget.paperColor,
-              onPageChanged: (page) {
-                _page = page;
-                cache.prefetch(page);
-                widget.onPageChanged?.call(page);
+    final aspect = cache.aspectRatioOf(0);
+    return LayoutBuilder(
+      builder: (context, outer) {
+        final spread = switch (widget.spreadMode) {
+          PageSpreadMode.single => false,
+          PageSpreadMode.double => true,
+          PageSpreadMode.auto => PageFlipView.shouldSpread(
+            outer.biggest,
+            aspect,
+          ),
+        };
+        return Center(
+          child: AspectRatio(
+            aspectRatio: spread ? aspect * 2 : aspect,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final pageSize = Size(
+                  spread ? constraints.maxWidth / 2 : constraints.maxWidth,
+                  constraints.maxHeight,
+                );
+                cache.resize(pageSize, devicePixelRatio);
+                final layout = PageSpread(coverAlone: widget.coverAlone);
+                return PageFlipView(
+                  itemCount: cache.pageCount,
+                  controller: widget.controller,
+                  paperColor: widget.paperColor,
+                  spread: spread,
+                  coverAlone: widget.coverAlone,
+                  onPageChanged: (page) {
+                    _page = page;
+                    cache.prefetch(page);
+                    widget.onPageChanged?.call(page);
+                  },
+                  onCenterTap: widget.onCenterTap,
+                  enableZoom: widget.enableZoom,
+                  maxScale: widget.maxScale,
+                  onZoomChanged: (scale) {
+                    final visible = spread
+                        ? [
+                            layout.leftOf(layout.spreadOf(_page)),
+                            layout.rightOf(layout.spreadOf(_page)),
+                          ]
+                        : [_page];
+                    cache.zoom(visible, scale);
+                  },
+                  itemBuilder: (context, index) => PdfPageImage(
+                    cache: cache,
+                    index: index,
+                    paperColor: widget.paperColor,
+                    placeholderBuilder: widget.placeholderBuilder,
+                    pageErrorBuilder: widget.pageErrorBuilder,
+                    colorFilter: widget.colorFilter,
+                  ),
+                );
               },
-              onCenterTap: widget.onCenterTap,
-              enableZoom: widget.enableZoom,
-              maxScale: widget.maxScale,
-              onZoomChanged: (scale) => cache.zoom(_page, scale),
-              itemBuilder: (context, index) => PdfPageImage(
-                cache: cache,
-                index: index,
-                paperColor: widget.paperColor,
-                placeholderBuilder: widget.placeholderBuilder,
-                pageErrorBuilder: widget.pageErrorBuilder,
-                colorFilter: widget.colorFilter,
-              ),
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

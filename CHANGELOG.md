@@ -1,3 +1,17 @@
+## 0.4.0
+
+- Two-page spread like an open book: `PageFlipView(spread: true)`, and
+  `PdfFlipBook(spreadMode: PageSpreadMode.auto | single | double)`. Auto
+  uses two pages on landscape phones, tablets and foldables opened
+  sideways, and one page on upright phones and upright unfolded foldables.
+- The back of a turning sheet in spread mode shows the real next page.
+- Layout switches live when the device rotates, folds or unfolds, keeping
+  the page; a turn in progress is cancelled cleanly.
+- `coverAlone` keeps the first page on its own, like a book cover.
+- Zoom in spread mode re-renders both visible PDF pages sharp.
+- `PageFlipView.shouldSpread` helper and `PageSpreadMode` enum.
+- README: demo GIFs for spread, zoom and night mode.
+
 ## 0.3.0
 
 - `PdfFlipBook.network(uri, headers:, timeout:)` downloads and opens a PDF.

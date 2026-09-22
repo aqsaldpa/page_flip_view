@@ -106,4 +106,51 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(taps, 1);
   });
+
+  testWidgets('spread turns two pages at a time with the cover alone', (
+    tester,
+  ) async {
+    final controller = PageFlipController();
+    final changes = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PageFlipView(
+          spread: true,
+          itemCount: 5,
+          controller: controller,
+          onPageChanged: changes.add,
+          itemBuilder: (context, index) => Text('page $index'),
+        ),
+      ),
+    );
+    expect(find.text('page 0'), findsOneWidget);
+    expect(find.text('page 1'), findsNothing);
+
+    await tester.fling(find.byType(PageFlipView), const Offset(-400, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(changes.last, 1);
+    expect(find.text('page 1'), findsOneWidget);
+    expect(find.text('page 2'), findsOneWidget);
+
+    controller.next();
+    await tester.pumpAndSettle();
+    expect(changes.last, 3);
+    expect(find.text('page 3'), findsOneWidget);
+    expect(find.text('page 4'), findsOneWidget);
+
+    controller.next();
+    await tester.pumpAndSettle();
+    expect(changes.last, 3);
+
+    await tester.fling(find.byType(PageFlipView), const Offset(400, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(changes.last, 1);
+  });
+
+  test('shouldSpread picks two pages only when wide enough', () {
+    expect(PageFlipView.shouldSpread(const Size(400, 800), 0.7), isFalse);
+    expect(PageFlipView.shouldSpread(const Size(673, 809), 0.7), isFalse);
+    expect(PageFlipView.shouldSpread(const Size(809, 673), 0.7), isTrue);
+    expect(PageFlipView.shouldSpread(const Size(900, 400), 0.7), isTrue);
+  });
 }

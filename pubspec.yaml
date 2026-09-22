@@ -1,11 +1,17 @@
 name: page_flip_view
 description: Turn pages like a real book. A diagonal corner curl that follows the finger, for any widgets and for PDF files (rendered with pdfrx).
-version: 0.3.0
+version: 0.4.0
 repository: https://github.com/aqsaldpa/page_flip_view
 issue_tracker: https://github.com/aqsaldpa/page_flip_view/issues
 screenshots:
   - description: A PDF page turned with the corner curl
     path: doc/demo.gif
+  - description: Two pages side by side on wide screens and foldables
+    path: doc/spread.gif
+  - description: Double tap and pinch zoom
+    path: doc/zoom.gif
+  - description: Night mode
+    path: doc/night.gif
 
 topics:
   - page-flip

@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'page_fold.dart';
 import 'page_fold_flap_painter.dart';
 import 'page_fold_under_painter.dart';
+import 'page_spread.dart';
 import 'page_turn.dart';
 import 'path_clipper.dart';
 
@@ -50,7 +51,15 @@ class PageFlipView extends StatefulWidget {
     this.maxScale = 4,
     this.doubleTapScale = 2.5,
     this.onZoomChanged,
+    this.spread = false,
+    this.coverAlone = true,
   });
+
+  /// Whether two pages of this [pageAspectRatio] (width / height) look
+  /// better side by side than one at a time in [available] space. True for
+  /// landscape phones, tablets and unfolded foldables.
+  static bool shouldSpread(Size available, double pageAspectRatio) =>
+      PageSpread.fits(available.width, available.height, pageAspectRatio);
 
   /// Number of pages.
   final int itemCount;
@@ -111,6 +120,14 @@ class PageFlipView extends StatefulWidget {
   /// sharper version of the page.
   final ValueChanged<double>? onZoomChanged;
 
+  /// Shows two pages side by side like an open book; the right page turns
+  /// over the spine in the middle. Give the view twice the width of a page.
+  final bool spread;
+
+  /// In [spread] mode, whether the first page stands alone on the right,
+  /// like the cover of a printed book.
+  final bool coverAlone;
+
   @override
   State<PageFlipView> createState() => _PageFlipViewState();
 }
@@ -147,6 +164,19 @@ class _PageFlipViewState extends State<PageFlipView>
 
   bool get _busy => _motion.isAnimating;
 
+  PageSpread get _layout => PageSpread(coverAlone: widget.coverAlone);
+
+  double get _pageWidth => widget.spread ? _size.width / 2 : _size.width;
+
+  Size get _pageSize => Size(_pageWidth, _size.height);
+
+  bool _valid(int index) => index >= 0 && index < widget.itemCount;
+
+  int _anchorOf(int spread) {
+    final left = _layout.leftOf(spread);
+    return _valid(left) ? left : _layout.rightOf(spread);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -166,6 +196,15 @@ class _PageFlipViewState extends State<PageFlipView>
     if (_page >= widget.itemCount && widget.itemCount > 0) {
       _page = widget.itemCount - 1;
     }
+    if (oldWidget.spread != widget.spread) _cancelTurn();
+  }
+
+  void _cancelTurn() {
+    if (_turn == null) return;
+    _follow.stop();
+    _motion.stop();
+    _motionPath = null;
+    _turn = null;
   }
 
   @override
@@ -189,16 +228,22 @@ class _PageFlipViewState extends State<PageFlipView>
     widget.onPageChanged?.call(_page);
   }
 
-  bool _canTurn({required bool forward}) =>
-      forward ? _page < widget.itemCount - 1 : _page > 0;
+  bool _canTurn({required bool forward}) {
+    if (!widget.spread) {
+      return forward ? _page < widget.itemCount - 1 : _page > 0;
+    }
+    final spread = _layout.spreadOf(_page);
+    return forward ? _valid(_layout.leftOf(spread + 1)) : spread > 0;
+  }
 
   PageTurn _beginTurn({required bool forward, required double touchY}) {
     final corner = Offset(
-      _size.width,
+      _pageWidth,
       touchY > _size.height / 2 ? _size.height : 0,
     );
+    final current = widget.spread ? _layout.spreadOf(_page) : _page;
     return PageTurn(
-      index: forward ? _page : _page - 1,
+      index: forward ? current : current - 1,
       corner: corner,
       forward: forward,
     );
@@ -257,11 +302,12 @@ class _PageFlipViewState extends State<PageFlipView>
       final forward = delta.dx < 0;
       if (!_canTurn(forward: forward)) return;
       active = _beginTurn(forward: forward, touchY: _dragStart.dy);
-      _shown = active.restingPoint(_size);
+      _shown = active.restingPoint(_pageSize);
       setState(() => _turn = active);
     }
-    final gain = active.forward ? 1.0 : 2.0;
-    _target = active.restingPoint(_size) + Offset(delta.dx * gain, delta.dy);
+    final gain = active.forward || widget.spread ? 1.0 : 2.0;
+    _target =
+        active.restingPoint(_pageSize) + Offset(delta.dx * gain, delta.dy);
     if (!_follow.isActive) {
       _lastTick = Duration.zero;
       _follow.start();
@@ -332,12 +378,15 @@ class _PageFlipViewState extends State<PageFlipView>
     final active = _turn;
     if (active == null || _busy) return;
     _follow.stop();
+    final forwardLine = widget.spread ? 0.0 : _pageWidth / 2;
     final commit = active.forward
-        ? velocity < -250 || (velocity <= 250 && _target.dx < _size.width / 2)
+        ? velocity < -250 || (velocity <= 250 && _target.dx < forwardLine)
         : velocity > 250 || (velocity >= -250 && _target.dx > 0);
-    final end = commit ? active.turnedPoint(_size) : active.restingPoint(_size);
+    final end = commit
+        ? active.turnedPoint(_pageSize)
+        : active.restingPoint(_pageSize);
     final start = _shown;
-    final fraction = ((end.dx - start.dx).abs() / (2 * _size.width)).clamp(
+    final fraction = ((end.dx - start.dx).abs() / (2 * _pageWidth)).clamp(
       0.2,
       1.0,
     );
@@ -357,9 +406,9 @@ class _PageFlipViewState extends State<PageFlipView>
       return Future.value();
     }
     final active = _beginTurn(forward: forward, touchY: _size.height);
-    final start = active.restingPoint(_size);
-    final end = active.turnedPoint(_size);
-    final width = _size.width;
+    final start = active.restingPoint(_pageSize);
+    final end = active.turnedPoint(_pageSize);
+    final width = _pageWidth;
     setState(() {
       _turn = active;
       _shown = start;
@@ -385,7 +434,7 @@ class _PageFlipViewState extends State<PageFlipView>
     _motionPath = (t) => path(curve.transform(t));
     _motion.duration = duration;
     await _motion.forward(from: 0).orCancel.catchError((_) {});
-    if (!mounted) return;
+    if (!mounted || _turn == null) return;
     _motionPath = null;
     onDone();
   }
@@ -397,9 +446,12 @@ class _PageFlipViewState extends State<PageFlipView>
   }
 
   void _finishTurn(PageTurn active, {required bool committed}) {
-    final nextPage = committed
-        ? (active.forward ? _page + 1 : _page - 1)
-        : _page;
+    final landed = active.forward ? active.index + 1 : active.index;
+    final nextPage = !committed
+        ? _page
+        : widget.spread
+        ? _anchorOf(landed)
+        : landed;
     setState(() {
       _turn = null;
       _page = nextPage;
@@ -458,6 +510,7 @@ class _PageFlipViewState extends State<PageFlipView>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.biggest != _size) _cancelTurn();
         _size = constraints.biggest;
         final drag = widget.enableDrag;
         return GestureDetector(
@@ -473,22 +526,37 @@ class _PageFlipViewState extends State<PageFlipView>
     );
   }
 
+  Widget _slot(int index) =>
+      _valid(index) ? _pageAt(index) : const SizedBox.shrink();
+
+  Widget _restingPages() {
+    if (!widget.spread) return _pageAt(_page);
+    final spread = _layout.spreadOf(_page);
+    return Row(
+      children: [
+        Expanded(child: _slot(_layout.leftOf(spread))),
+        Expanded(child: _slot(_layout.rightOf(spread))),
+      ],
+    );
+  }
+
   Widget _layers() {
     if (widget.itemCount == 0) return const SizedBox.shrink();
     final active = _turn;
     if (active == null) {
-      if (!_zoomed) return _pageAt(_page);
+      if (!_zoomed) return _restingPages();
       return Transform(
         transform: Matrix4.translationValues(_pan.dx, _pan.dy, 0)
           ..multiply(Matrix4.diagonal3Values(_scale, _scale, 1)),
-        child: _pageAt(_page),
+        child: _restingPages(),
       );
     }
     final fold = PageFold.resolve(
-      size: _size,
+      size: _pageSize,
       corner: active.corner,
       finger: _shown,
     );
+    if (widget.spread) return _spreadTurn(active, fold);
     if (fold == null) return _pageAt(active.index);
     return Stack(
       fit: StackFit.expand,
@@ -513,6 +581,77 @@ class _PageFlipViewState extends State<PageFlipView>
           ),
         ),
         IgnorePointer(child: CustomPaint(painter: PageFoldFlapPainter(fold))),
+      ],
+    );
+  }
+
+  Widget _spreadTurn(PageTurn active, PageFold? fold) {
+    final left = _layout.leftOf(active.index);
+    final right = _layout.rightOf(active.index);
+    final nextLeft = _layout.leftOf(active.index + 1);
+    final nextRight = _layout.rightOf(active.index + 1);
+    final width = _pageWidth;
+    final height = _size.height;
+    if (fold == null) {
+      return Row(
+        children: [
+          Expanded(child: _slot(left)),
+          Expanded(child: _slot(right)),
+        ],
+      );
+    }
+    final backside = fold.reflection.clone()
+      ..multiply(Matrix4.translationValues(width, 0, 0))
+      ..multiply(Matrix4.diagonal3Values(-1, 1, 1));
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _slot(left)),
+            Expanded(child: _slot(nextRight)),
+          ],
+        ),
+        Positioned(
+          left: width,
+          top: 0,
+          width: width,
+          height: height,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              if (_valid(right))
+                Positioned.fill(
+                  child: ClipPath(
+                    clipper: PathClipper(fold.frontPath),
+                    child: _pageAt(right),
+                  ),
+                ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(painter: PageFoldUnderPainter(fold)),
+                ),
+              ),
+              Positioned.fill(
+                child: ClipPath(
+                  clipper: PathClipper(fold.flapPath),
+                  child: Transform(
+                    transform: backside,
+                    child: ColoredBox(
+                      color: widget.paperColor,
+                      child: _slot(nextLeft),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(painter: PageFoldFlapPainter(fold)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
