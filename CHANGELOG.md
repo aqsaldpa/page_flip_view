@@ -1,3 +1,14 @@
+## 0.5.0
+
+- Right-to-left books: `PageFlipView(reverse: true)` turns pages from left
+  to right with the spine on the right, for Arabic, Hebrew or manga. Page
+  content is not mirrored; works with `spread` and zoom.
+- Smoother turns with heavy pages: the pages next to the current one stay
+  built offstage, and pages keep their state when a turn moves them around,
+  so a turn starts without building pages and they are not rebuilt on every
+  frame while the curl follows the finger.
+- `backsideOpacity: 0` no longer builds a hidden copy of the turning page.
+
 ## 0.4.1
 
 - New reading filters that keep colours: `PdfFlipBook.dim` (75 %

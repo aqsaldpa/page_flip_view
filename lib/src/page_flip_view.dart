@@ -31,7 +31,9 @@ part 'page_flip_controller.dart';
 class PageFlipView extends StatefulWidget {
   /// Creates a flip view with [itemCount] pages built lazily by [itemBuilder].
   ///
-  /// Only the current page and its neighbours are built at any time.
+  /// Only the current page and its neighbours are built at any time. The
+  /// neighbours stay built offstage, so a turn starts without building pages
+  /// and pages are not rebuilt while the curl follows the finger.
   const PageFlipView({
     super.key,
     required this.itemCount,
@@ -53,6 +55,7 @@ class PageFlipView extends StatefulWidget {
     this.onZoomChanged,
     this.spread = false,
     this.coverAlone = true,
+    this.reverse = false,
   });
 
   /// Whether two pages of this [pageAspectRatio] (width / height) look
@@ -135,6 +138,12 @@ class PageFlipView extends StatefulWidget {
   /// like the cover of a printed book.
   final bool coverAlone;
 
+  /// Turns pages from left to right, for right-to-left books such as Arabic,
+  /// Hebrew or manga: the spine is on the right, the next page lies on the
+  /// left and a swipe to the right turns forward. Page content is not
+  /// mirrored. In [spread] mode the lower page of each pair is on the right.
+  final bool reverse;
+
   @override
   State<PageFlipView> createState() => _PageFlipViewState();
 }
@@ -167,6 +176,10 @@ class _PageFlipViewState extends State<PageFlipView>
   Offset _lastTapAt = Offset.zero;
   VoidCallback? _zoomListener;
 
+  final Map<int, GlobalKey> _pageKeys = {};
+  final Map<int, Widget> _builtPages = {};
+  final Set<int> _placedPages = {};
+
   bool get _zoomed => _scale > 1.01;
 
   bool get _busy => _motion.isAnimating;
@@ -178,6 +191,10 @@ class _PageFlipViewState extends State<PageFlipView>
   Size get _pageSize => Size(_pageWidth, _size.height);
 
   bool _valid(int index) => index >= 0 && index < widget.itemCount;
+
+  Offset _local(Offset position) => widget.reverse
+      ? Offset(_size.width - position.dx, position.dy)
+      : position;
 
   int _anchorOf(int spread) {
     final left = _layout.leftOf(spread);
@@ -204,6 +221,7 @@ class _PageFlipViewState extends State<PageFlipView>
       _page = widget.itemCount - 1;
     }
     if (oldWidget.spread != widget.spread) _cancelTurn();
+    _builtPages.clear();
   }
 
   void _cancelTurn() {
@@ -259,8 +277,8 @@ class _PageFlipViewState extends State<PageFlipView>
   void _onScaleStart(ScaleStartDetails details) {
     if (_busy) return;
     _zoomMotion.stop();
-    _dragStart = details.localFocalPoint;
-    _gestureStartFocal = details.localFocalPoint;
+    _dragStart = _local(details.localFocalPoint);
+    _gestureStartFocal = _dragStart;
     _gestureStartScale = _scale;
     _gestureStartPan = _pan;
     _zooming = false;
@@ -273,13 +291,14 @@ class _PageFlipViewState extends State<PageFlipView>
       _updateZoom(details, pinching: pinching);
       return;
     }
-    if (widget.enableDrag) _updateTurn(details.localFocalPoint);
+    if (widget.enableDrag) _updateTurn(_local(details.localFocalPoint));
   }
 
   void _updateZoom(ScaleUpdateDetails details, {required bool pinching}) {
+    final focal = _local(details.localFocalPoint);
     if (!_zooming) {
       _zooming = true;
-      _gestureStartFocal = details.localFocalPoint;
+      _gestureStartFocal = focal;
       _gestureStartScale = _scale;
       _gestureStartPan = _pan;
     }
@@ -288,8 +307,8 @@ class _PageFlipViewState extends State<PageFlipView>
         : _scale;
     final anchor = (_gestureStartFocal - _gestureStartPan) / _gestureStartScale;
     final pan = pinching
-        ? details.localFocalPoint - anchor * scale
-        : _gestureStartPan + (details.localFocalPoint - _gestureStartFocal);
+        ? focal - anchor * scale
+        : _gestureStartPan + (focal - _gestureStartFocal);
     setState(() {
       _scale = scale;
       _pan = _clampPan(pan, scale);
@@ -331,7 +350,8 @@ class _PageFlipViewState extends State<PageFlipView>
       }
       return;
     }
-    _endTurn(details.velocity.pixelsPerSecond.dx);
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    _endTurn(widget.reverse ? -velocity : velocity);
   }
 
   void _toggleZoomAt(Offset position) {
@@ -470,7 +490,7 @@ class _PageFlipViewState extends State<PageFlipView>
 
   void _onTapUp(TapUpDetails details) {
     if (_busy || _turn != null) return;
-    final position = details.localPosition;
+    final position = _local(details.localPosition);
     final edge = widget.enableTapToFlip && !_zoomed
         ? widget.edgeTapFraction
         : 0.0;
@@ -508,10 +528,85 @@ class _PageFlipViewState extends State<PageFlipView>
     });
   }
 
-  Widget _pageAt(int index) => RepaintBoundary(
-    key: ValueKey(index),
-    child: widget.itemBuilder(context, index),
-  );
+  Widget _content(int index) => _builtPages.putIfAbsent(index, () {
+    final page = widget.itemBuilder(context, index);
+    return widget.reverse ? Transform.flip(flipX: true, child: page) : page;
+  });
+
+  Widget _pageAt(int index) {
+    _placedPages.add(index);
+    return RepaintBoundary(
+      key: _pageKeys.putIfAbsent(index, GlobalKey.new),
+      child: _content(index),
+    );
+  }
+
+  Widget _backside(int index) {
+    final paper = ColoredBox(color: widget.paperColor);
+    if (widget.backsideOpacity <= 0) return paper;
+    return ColoredBox(
+      color: widget.paperColor,
+      child: Opacity(
+        opacity: widget.backsideOpacity.clamp(0.0, 1.0),
+        child: _content(index),
+      ),
+    );
+  }
+
+  Set<int> _shownPages() {
+    final active = _turn;
+    if (!widget.spread) {
+      if (active == null) return {_page};
+      return {active.index, active.index + 1}.where(_valid).toSet();
+    }
+    if (active != null) {
+      return {
+        for (final spread in [active.index, active.index + 1]) ...[
+          _layout.leftOf(spread),
+          _layout.rightOf(spread),
+        ],
+      }.where(_valid).toSet();
+    }
+    final spread = _layout.spreadOf(_page);
+    return {
+      _layout.leftOf(spread),
+      _layout.rightOf(spread),
+    }.where(_valid).toSet();
+  }
+
+  Set<int> _neighbourPages() {
+    if (!widget.spread) return {_page - 1, _page + 1}.where(_valid).toSet();
+    final spread = _layout.spreadOf(_page);
+    return {
+      for (final near in [spread - 1, spread + 1]) ...[
+        _layout.leftOf(near),
+        _layout.rightOf(near),
+      ],
+    }.where(_valid).toSet();
+  }
+
+  Widget _bookWithWarmPages() {
+    _placedPages.clear();
+    final shown = _layers();
+    final keep = {..._shownPages(), ..._neighbourPages()};
+    final warm = keep.difference(_placedPages);
+    _pageKeys.removeWhere((index, _) => !keep.contains(index));
+    _builtPages.removeWhere((index, _) => !keep.contains(index));
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (final index in warm)
+          Positioned(
+            left: 0,
+            top: 0,
+            width: _pageWidth,
+            height: _size.height,
+            child: Offstage(child: _pageAt(index)),
+          ),
+        shown,
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -527,11 +622,14 @@ class _PageFlipViewState extends State<PageFlipView>
           onScaleStart: drag || widget.enableZoom ? _onScaleStart : null,
           onScaleUpdate: drag || widget.enableZoom ? _onScaleUpdate : null,
           onScaleEnd: drag || widget.enableZoom ? _onScaleEnd : null,
-          child: ClipRect(child: _layers()),
+          child: ClipRect(child: _mirrored(_bookWithWarmPages())),
         );
       },
     );
   }
+
+  Widget _mirrored(Widget child) =>
+      widget.reverse ? Transform.flip(flipX: true, child: child) : child;
 
   Widget _slot(int index) =>
       _valid(index) ? _pageAt(index) : const SizedBox.shrink();
@@ -578,13 +676,7 @@ class _PageFlipViewState extends State<PageFlipView>
           clipper: PathClipper(fold.flapPath),
           child: Transform(
             transform: fold.reflection,
-            child: ColoredBox(
-              color: widget.paperColor,
-              child: Opacity(
-                opacity: widget.backsideOpacity,
-                child: _pageAt(active.index),
-              ),
-            ),
+            child: _backside(active.index),
           ),
         ),
         IgnorePointer(child: CustomPaint(painter: PageFoldFlapPainter(fold))),

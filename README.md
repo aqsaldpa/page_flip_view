@@ -37,7 +37,7 @@ or in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  page_flip_view: ^0.4.1
+  page_flip_view: ^0.5.0
 ```
 
 **2. Platform setup** (only needed for PDFs)
@@ -93,7 +93,19 @@ PageFlipView(
 )
 ```
 
-Only the current page and the pages taking part in a turn are built.
+The current page and its neighbours are built; the neighbours wait offstage, so a turn starts without building anything and pages are not rebuilt while the curl follows the finger. Set `backsideOpacity: 0` to show plain paper on the back of a turning sheet and skip building a copy of the page for it.
+
+## Right-to-left books
+
+```dart
+PageFlipView(
+  reverse: true,
+  itemCount: pages.length,
+  itemBuilder: (context, index) => pages[index],
+)
+```
+
+For Arabic, Hebrew or manga: the spine is on the right, the next page lies on the left, and a swipe or tap to the right turns forward. Page content is not mirrored.
 
 ## Control it from code
 
@@ -209,6 +221,7 @@ PdfFlipBook.network(
 | `doubleTapScale` | 2.5 | Zoom factor of a double tap |
 | `onZoomChanged` | | Called when a zoom settles, e.g. to load a sharper image |
 | `spread` | false | Two pages side by side; give the view twice a page's width |
+| `reverse` | false | Right-to-left book: pages turn from left to right |
 
 `PdfFlipBook` only: `spreadMode` (auto / single / double), `colorFilter` (see reading modes), `onLoaded`, `loadingBuilder`, `placeholderBuilder`, `pageErrorBuilder`, `errorBuilder`, `password`, and `headers` / `timeout` for `.network`.
 
@@ -240,7 +253,6 @@ flutter run
 
 ## Not yet
 
-- Right-to-left books (for example Arabic or Japanese)
 - Dual-screen devices with a physical hinge gap (Surface Duo): the spine is centred, not moved around the gap
 
 ## License

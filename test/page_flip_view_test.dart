@@ -147,6 +147,76 @@ void main() {
     expect(changes.last, 1);
   });
 
+  testWidgets('reverse turns forward with a swipe or tap to the right', (
+    tester,
+  ) async {
+    final controller = PageFlipController();
+    final changes = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PageFlipView(
+          reverse: true,
+          itemCount: 4,
+          controller: controller,
+          onPageChanged: changes.add,
+          itemBuilder: (context, index) => Center(child: Text('page $index')),
+        ),
+      ),
+    );
+
+    await tester.fling(find.byType(PageFlipView), const Offset(-300, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(changes, isEmpty);
+
+    await tester.fling(find.byType(PageFlipView), const Offset(300, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(changes, [1]);
+
+    await tester.tapAt(const Offset(10, 300));
+    await tester.pumpAndSettle();
+    expect(changes.last, 2);
+
+    await tester.tapAt(const Offset(790, 300));
+    await tester.pumpAndSettle();
+    expect(changes.last, 1);
+  });
+
+  testWidgets('neighbours stay built and pages are not rebuilt mid turn', (
+    tester,
+  ) async {
+    final builds = <int, int>{};
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PageFlipView(
+          itemCount: 5,
+          initialPage: 2,
+          backsideOpacity: 0,
+          itemBuilder: (context, index) => Builder(
+            builder: (context) {
+              builds[index] = (builds[index] ?? 0) + 1;
+              return Center(child: Text('page $index'));
+            },
+          ),
+        ),
+      ),
+    );
+    expect(builds, {1: 1, 2: 1, 3: 1});
+    expect(find.text('page 1', skipOffstage: false), findsOneWidget);
+    expect(find.text('page 1'), findsNothing);
+
+    final gesture = await tester.startGesture(const Offset(600, 500));
+    for (var i = 0; i < 10; i++) {
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(builds, {1: 1, 2: 1, 3: 1});
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(builds[2], 1);
+    expect(builds[3], 1);
+  });
+
   test('shouldSpread picks two pages only when wide enough', () {
     expect(PageFlipView.shouldSpread(const Size(400, 800), 0.7), isFalse);
     expect(PageFlipView.shouldSpread(const Size(673, 809), 0.7), isFalse);
