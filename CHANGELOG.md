@@ -1,3 +1,9 @@
+## 0.5.1
+
+- A swipe, edge tap or `controller.next()` / `previous()` while a turn is
+  still finishing now completes that turn at once and starts the next one,
+  so quick repeated flicks turn several pages instead of being ignored.
+
 ## 0.5.0
 
 - Right-to-left books: `PageFlipView(reverse: true)` turns pages from left

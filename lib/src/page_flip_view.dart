@@ -165,6 +165,8 @@ class _PageFlipViewState extends State<PageFlipView>
   Offset _dragStart = Offset.zero;
   Duration _lastTick = Duration.zero;
   Offset Function(double)? _motionPath;
+  VoidCallback? _motionDone;
+  int _motionRun = 0;
 
   double _scale = 1;
   Offset _pan = Offset.zero;
@@ -227,6 +229,8 @@ class _PageFlipViewState extends State<PageFlipView>
   void _cancelTurn() {
     if (_turn == null) return;
     _follow.stop();
+    _motionRun++;
+    _motionDone = null;
     _motion.stop();
     _motionPath = null;
     _turn = null;
@@ -244,6 +248,8 @@ class _PageFlipViewState extends State<PageFlipView>
 
   void _jumpTo(int page) {
     _follow.stop();
+    _motionRun++;
+    _motionDone = null;
     _motion.stop();
     _resetZoom();
     setState(() {
@@ -275,7 +281,7 @@ class _PageFlipViewState extends State<PageFlipView>
   }
 
   void _onScaleStart(ScaleStartDetails details) {
-    if (_busy) return;
+    _settleRunningTurn();
     _zoomMotion.stop();
     _dragStart = _local(details.localFocalPoint);
     _gestureStartFocal = _dragStart;
@@ -426,10 +432,8 @@ class _PageFlipViewState extends State<PageFlipView>
   }
 
   Future<void> _autoTurn({required bool forward}) {
-    if (_busy ||
-        _turn != null ||
-        _size.isEmpty ||
-        !_canTurn(forward: forward)) {
+    _settleRunningTurn();
+    if (_turn != null || _size.isEmpty || !_canTurn(forward: forward)) {
       return Future.value();
     }
     final active = _beginTurn(forward: forward, touchY: _size.height);
@@ -458,12 +462,25 @@ class _PageFlipViewState extends State<PageFlipView>
     required Offset Function(double) path,
     required VoidCallback onDone,
   }) async {
+    final run = ++_motionRun;
     _motionPath = (t) => path(curve.transform(t));
+    _motionDone = onDone;
     _motion.duration = duration;
     await _motion.forward(from: 0).orCancel.catchError((_) {});
-    if (!mounted || _turn == null) return;
+    if (!mounted || run != _motionRun || _turn == null) return;
     _motionPath = null;
+    _motionDone = null;
     onDone();
+  }
+
+  void _settleRunningTurn() {
+    final done = _motionDone;
+    if (!_busy || done == null) return;
+    _motionRun++;
+    _motionDone = null;
+    _motionPath = null;
+    _motion.stop();
+    done();
   }
 
   void _onMotionTick() {
@@ -489,7 +506,8 @@ class _PageFlipViewState extends State<PageFlipView>
   }
 
   void _onTapUp(TapUpDetails details) {
-    if (_busy || _turn != null) return;
+    _settleRunningTurn();
+    if (_turn != null) return;
     final position = _local(details.localPosition);
     final edge = widget.enableTapToFlip && !_zoomed
         ? widget.edgeTapFraction

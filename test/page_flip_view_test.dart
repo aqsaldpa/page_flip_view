@@ -217,6 +217,34 @@ void main() {
     expect(builds[3], 1);
   });
 
+  testWidgets('a new turn during a finishing turn counts both', (tester) async {
+    final controller = PageFlipController();
+    final changes = <int>[];
+    await tester.pumpWidget(book(controller, changes));
+
+    await tester.fling(find.byType(PageFlipView), const Offset(-300, 0), 1500);
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.fling(find.byType(PageFlipView), const Offset(-300, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(changes, [1, 2]);
+    expect(find.text('page 2'), findsOneWidget);
+
+    await tester.tapAt(const Offset(10, 300));
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.tapAt(const Offset(10, 300));
+    await tester.pumpAndSettle();
+    expect(changes, [1, 2, 1, 0]);
+
+    controller.next();
+    await tester.pump(const Duration(milliseconds: 60));
+    controller.next();
+    await tester.pump(const Duration(milliseconds: 60));
+    controller.next();
+    await tester.pumpAndSettle();
+    expect(changes, [1, 2, 1, 0, 1, 2, 3]);
+    expect(controller.page, 3);
+  });
+
   test('shouldSpread picks two pages only when wide enough', () {
     expect(PageFlipView.shouldSpread(const Size(400, 800), 0.7), isFalse);
     expect(PageFlipView.shouldSpread(const Size(673, 809), 0.7), isFalse);

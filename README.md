@@ -37,7 +37,7 @@ or in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  page_flip_view: ^0.5.0
+  page_flip_view: ^0.5.1
 ```
 
 **2. Platform setup** (only needed for PDFs)
