@@ -59,6 +59,7 @@ class PdfFlipBook extends StatefulWidget {
     String? password,
     ColorFilter? colorFilter,
     bool enableZoom = true,
+    bool enableTapToFlip = true,
     double maxScale = 4,
     PageSpreadMode spreadMode = PageSpreadMode.auto,
     bool coverAlone = true,
@@ -79,6 +80,7 @@ class PdfFlipBook extends StatefulWidget {
          password: password,
          colorFilter: colorFilter,
          enableZoom: enableZoom,
+         enableTapToFlip: enableTapToFlip,
          maxScale: maxScale,
          spreadMode: spreadMode,
          coverAlone: coverAlone,
@@ -100,6 +102,7 @@ class PdfFlipBook extends StatefulWidget {
     String? password,
     ColorFilter? colorFilter,
     bool enableZoom = true,
+    bool enableTapToFlip = true,
     double maxScale = 4,
     PageSpreadMode spreadMode = PageSpreadMode.auto,
     bool coverAlone = true,
@@ -118,6 +121,7 @@ class PdfFlipBook extends StatefulWidget {
          password: password,
          colorFilter: colorFilter,
          enableZoom: enableZoom,
+         enableTapToFlip: enableTapToFlip,
          maxScale: maxScale,
          spreadMode: spreadMode,
          coverAlone: coverAlone,
@@ -139,6 +143,7 @@ class PdfFlipBook extends StatefulWidget {
     String? password,
     ColorFilter? colorFilter,
     bool enableZoom = true,
+    bool enableTapToFlip = true,
     double maxScale = 4,
     PageSpreadMode spreadMode = PageSpreadMode.auto,
     bool coverAlone = true,
@@ -157,6 +162,7 @@ class PdfFlipBook extends StatefulWidget {
          password: password,
          colorFilter: colorFilter,
          enableZoom: enableZoom,
+         enableTapToFlip: enableTapToFlip,
          maxScale: maxScale,
          spreadMode: spreadMode,
          coverAlone: coverAlone,
@@ -178,6 +184,7 @@ class PdfFlipBook extends StatefulWidget {
     String? password,
     ColorFilter? colorFilter,
     bool enableZoom = true,
+    bool enableTapToFlip = true,
     double maxScale = 4,
     PageSpreadMode spreadMode = PageSpreadMode.auto,
     bool coverAlone = true,
@@ -196,6 +203,7 @@ class PdfFlipBook extends StatefulWidget {
          password: password,
          colorFilter: colorFilter,
          enableZoom: enableZoom,
+         enableTapToFlip: enableTapToFlip,
          maxScale: maxScale,
          spreadMode: spreadMode,
          coverAlone: coverAlone,
@@ -215,6 +223,7 @@ class PdfFlipBook extends StatefulWidget {
     PdfPageErrorBuilder? pageErrorBuilder,
     ColorFilter? colorFilter,
     bool enableZoom = true,
+    bool enableTapToFlip = true,
     double maxScale = 4,
     PageSpreadMode spreadMode = PageSpreadMode.auto,
     bool coverAlone = true,
@@ -230,6 +239,7 @@ class PdfFlipBook extends StatefulWidget {
          pageErrorBuilder: pageErrorBuilder,
          colorFilter: colorFilter,
          enableZoom: enableZoom,
+         enableTapToFlip: enableTapToFlip,
          maxScale: maxScale,
          spreadMode: spreadMode,
          coverAlone: coverAlone,
@@ -256,6 +266,7 @@ class PdfFlipBook extends StatefulWidget {
     this.password,
     this.colorFilter,
     this.enableZoom = true,
+    this.enableTapToFlip = true,
     this.maxScale = 4,
     this.spreadMode = PageSpreadMode.auto,
     this.coverAlone = true,
@@ -369,6 +380,11 @@ class PdfFlipBook extends StatefulWidget {
   /// Pinch or double tap to zoom into a page. The zoomed page is rendered
   /// again at the higher resolution, so text stays sharp.
   final bool enableZoom;
+
+  /// Whether tapping the left or right edge of a page turns it. Turn off to
+  /// keep every tap for [onCenterTap], for example to show reader controls;
+  /// dragging still turns pages.
+  final bool enableTapToFlip;
 
   /// Largest zoom factor.
   final double maxScale;
@@ -548,6 +564,7 @@ class _PdfFlipBookState extends State<PdfFlipBook> {
                   },
                   onCenterTap: widget.onCenterTap,
                   enableZoom: widget.enableZoom,
+                  enableTapToFlip: widget.enableTapToFlip,
                   maxScale: widget.maxScale,
                   onZoomChanged: (scale) {
                     final visible = spread

@@ -1,3 +1,9 @@
+## 0.5.2
+
+- `PdfFlipBook` gains `enableTapToFlip` (default `true`), forwarded to
+  `PageFlipView`. Set it to `false` so taps near the page edges reach
+  `onCenterTap` instead of turning the page; dragging still turns pages.
+
 ## 0.5.1
 
 - A swipe, edge tap or `controller.next()` / `previous()` while a turn is
